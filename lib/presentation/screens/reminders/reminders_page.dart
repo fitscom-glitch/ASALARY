@@ -11,6 +11,7 @@ import 'package:theo_doi_luong/data/models/reminder_config.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/presentation/screens/reminders/reminder_editor_page.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
+import 'package:theo_doi_luong/presentation/widgets/toast.dart';
 import 'package:theo_doi_luong/services/reminder_service.dart';
 
 /// Danh sách nhắc nhở (giống báo thức): mỗi nhắc nhở có giờ, ngày lặp lại và công tắc bật/tắt.
@@ -23,17 +24,46 @@ class RemindersPage extends StatefulWidget {
   State<RemindersPage> createState() => _RemindersPageState();
 }
 
-class _RemindersPageState extends State<RemindersPage> {
+class _RemindersPageState extends State<RemindersPage> with WidgetsBindingObserver {
+  static const _deniedMsg =
+      'Chưa được cấp quyền thông báo. Hãy bật thông báo cho ứng dụng trong Cài đặt Android.';
+
   String? _msg;
   ReminderConfig get _cfg => widget.c.settings.reminders;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Người dùng vừa bật thông báo trong Cài đặt Android rồi quay lại: xóa dòng báo lỗi cũ.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _msg != null && kHasReminders) _recheckPermission();
+  }
+
+  Future<void> _recheckPermission() async {
+    final ok = await widget.service.notificationsEnabled();
+    if (ok && mounted) setState(() => _msg = null);
+  }
+
+  /// Xin quyền và cập nhật dòng báo lỗi theo kết quả (xóa dòng đỏ khi đã được cấp quyền).
+  Future<bool> _ensurePermission() async {
+    final ok = await widget.service.requestPermission();
+    final err = widget.service.lastError;
+    if (mounted) setState(() => _msg = ok ? null : (err == null ? _deniedMsg : '$_deniedMsg\n($err)'));
+    return ok;
+  }
+
   Future<void> _apply(List<Reminder> items, {bool askPermission = false}) async {
-    if (askPermission && kHasReminders) {
-      final ok = await widget.service.requestPermission();
-      if (!ok && mounted) {
-        setState(() => _msg = 'Chưa được cấp quyền thông báo. Hãy bật thông báo cho ứng dụng trong Cài đặt Android.');
-      }
-    }
+    if (askPermission && kHasReminders) await _ensurePermission();
     await widget.c.updateSettings(widget.c.settings.copyWith(reminders: _cfg.copyWith(items: items)));
   }
 
@@ -66,14 +96,14 @@ class _RemindersPageState extends State<RemindersPage> {
       _apply([for (final x in _cfg.items) x.id == r.id ? x.copyWith(enabled: on) : x], askPermission: on);
 
   Future<void> _test() async {
-    final ok = await widget.service.requestPermission();
-    if (!ok) {
-      if (mounted) {
-        setState(() => _msg = 'Chưa được cấp quyền thông báo. Hãy bật thông báo cho ứng dụng trong Cài đặt Android.');
-      }
-      return;
+    if (!await _ensurePermission()) return;
+    try {
+      await widget.service.showTest();
+      if (mounted) showToast(context, 'Đã gửi thông báo thử. Hãy kéo thanh trạng thái xuống để xem.');
+    } catch (e) {
+      // Trước đây lỗi ở đây bị nuốt mất nên bấm nút mà không thấy gì.
+      if (mounted) setState(() => _msg = 'Không gửi được thông báo thử: $e');
     }
-    await widget.service.showTest();
   }
 
   /// Ví dụ: "T2, T3, T4, T5, T6", "T7, CN, Lễ", "Hàng ngày".
