@@ -23,12 +23,24 @@ class ReminderService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
+  /// Các tên biểu tượng thử lần lượt: plugin báo `invalid_icon` nếu không tìm thấy tài nguyên,
+  /// khi đó khởi tạo lỗi và mọi thông báo (kể cả đặt lịch) đều không chạy.
+  /// Cuối cùng dùng biểu tượng ứng dụng, luôn có sẵn, để thông báo vẫn hoạt động.
+  static const _iconCandidates = ['ic_stat_asalary', '@drawable/ic_stat_asalary', '@mipmap/ic_launcher'];
+
   Future<void> _init() async {
     if (_ready) return;
-    await _plugin.initialize(
-      const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_asalary')),
-    );
-    _ready = true;
+    Object? last;
+    for (final icon in _iconCandidates) {
+      try {
+        await _plugin.initialize(InitializationSettings(android: AndroidInitializationSettings(icon)));
+        _ready = true;
+        return;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last ?? StateError('Không khởi tạo được thông báo');
   }
 
   AndroidFlutterLocalNotificationsPlugin? get _android =>
