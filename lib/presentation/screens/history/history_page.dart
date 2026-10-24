@@ -9,6 +9,7 @@ import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/logic/period_utils.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/day_summary_card.dart';
+import 'package:theo_doi_luong/presentation/screens/history/widgets/period_header.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/range_summary_card.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/record_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/week_header.dart';
@@ -21,6 +22,22 @@ class _DayItem {
   const _DayItem(this.date, this.summary);
   final DateTime date;
   final PeriodSummary summary;
+}
+
+/// Tiêu đề tháng / tuần có thể mở rộng, thu gọn.
+class _GroupHeader {
+  const _GroupHeader({
+    required this.key,
+    required this.title,
+    required this.summary,
+    required this.expanded,
+    this.isMonth = false,
+    this.indent = 0,
+  });
+  final String key, title;
+  final PeriodSummary summary;
+  final bool expanded, isMonth;
+  final double indent;
 }
 
 enum HistoryPreset { all, week, month, lastMonth, year, custom }
@@ -37,6 +54,86 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   HistoryPreset _preset = HistoryPreset.all;
   DateTimeRange? _custom;
+
+  /// Khóa của các tháng / tuần đang mở rộng (mặc định thu gọn hết).
+  final Set<String> _open = {};
+
+  void _toggle(String key) => setState(() {
+        if (!_open.remove(key)) _open.add(key);
+      });
+
+  void _selectPreset(HistoryPreset p) => setState(() {
+        _preset = p;
+        _open.clear();
+      });
+
+  /// Gom các bản ghi liên tiếp có cùng khóa (danh sách đã sắp xếp theo thời gian).
+  List<(DateTime, List<WorkRecord>)> _groupBy(List<WorkRecord> rs, DateTime Function(WorkRecord) keyOf) {
+    final out = <(DateTime, List<WorkRecord>)>[];
+    for (final r in rs) {
+      final k = keyOf(r);
+      if (out.isNotEmpty && out.last.$1 == k) {
+        out.last.$2.add(r);
+      } else {
+        out.add((k, [r]));
+      }
+    }
+    return out;
+  }
+
+  PeriodSummary _sumOf(List<WorkRecord> rs) => summarize(rs, DateTime(1970), DateTime(3000));
+
+  /// Từng ngày: các ca của ngày đó, rồi đến thống kê ngày.
+  void _addDays(List<Object> out, List<WorkRecord> rs) {
+    for (final (day, list) in _groupBy(rs, (r) => dateOnly(r.start))) {
+      out.addAll(list);
+      out.add(_DayItem(day, _sumOf(list)));
+    }
+  }
+
+  /// Các tuần; tuần nào đang mở thì liệt kê tiếp các ngày bên dưới.
+  void _addWeeks(List<Object> out, List<WorkRecord> rs, {String scope = '', double indent = 0}) {
+    for (final (monday, list) in _groupBy(rs, (r) => startOfWeek(r.start, DateTime.monday))) {
+      final sunday = DateTime(monday.year, monday.month, monday.day + 6);
+      final key = 'w$scope|${monday.toIso8601String()}';
+      final open = _open.contains(key);
+      out.add(_GroupHeader(
+        key: key,
+        title: 'Tuần ${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
+        summary: _sumOf(list),
+        expanded: open,
+        indent: indent,
+      ));
+      if (open) _addDays(out, list);
+    }
+  }
+
+  /// Tuần này: liệt kê ngày. Tháng: liệt kê tuần. Năm: liệt kê tháng → tuần → ngày.
+  List<Object> _buildGrouped(List<WorkRecord> rs) {
+    final out = <Object>[];
+    switch (_preset) {
+      case HistoryPreset.week:
+        _addDays(out, rs);
+      case HistoryPreset.month || HistoryPreset.lastMonth:
+        _addWeeks(out, rs);
+      case HistoryPreset.year:
+        for (final (month, list) in _groupBy(rs, (r) => DateTime(r.start.year, r.start.month))) {
+          final key = 'm${month.toIso8601String()}';
+          final open = _open.contains(key);
+          out.add(_GroupHeader(
+            key: key,
+            title: periodTitle(CompareKind.month, month),
+            summary: _sumOf(list),
+            expanded: open,
+            isMonth: true,
+          ));
+          if (open) _addWeeks(out, list, scope: key, indent: 12);
+        }
+      case HistoryPreset.all || HistoryPreset.custom:
+        break;
+    }
+    return out;
+  }
 
   static const _presetLabels = {
     HistoryPreset.all: 'Tất cả',
@@ -81,6 +178,7 @@ class _HistoryPageState extends State<HistoryPage> {
       setState(() {
         _custom = r;
         _preset = HistoryPreset.custom;
+        _open.clear();
       });
     }
   }
@@ -108,31 +206,40 @@ class _HistoryPageState extends State<HistoryPage> {
                 ];
           final sum = summarize(rs, DateTime(1970), DateTime(3000));
 
-          // Danh sách hiển thị: DateTime = tiêu đề tuần, WorkRecord = ca làm,
-          // _DayItem = thống kê của ngày (đặt sau ca cuối cùng của ngày đó).
-          final items = <Object>[];
-          DateTime? currentWeek;
-          DateTime? currentDay;
-          void closeDay() {
-            final d = currentDay;
-            if (d == null) return;
-            items.add(_DayItem(d, summarize(rs, d, DateTime(d.year, d.month, d.day + 1))));
-          }
+          // Tuần này / Tháng / Năm: danh sách phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn.
+          // Tất cả và Chọn khoảng ngày: giữ nguyên danh sách phẳng theo tuần.
+          final grouped = _preset != HistoryPreset.all && _preset != HistoryPreset.custom;
 
-          for (final r in rs) {
-            final day = dateOnly(r.start);
-            if (currentDay != day) {
-              closeDay();
-              currentDay = day;
+          // Danh sách hiển thị: DateTime = tiêu đề tuần (danh sách phẳng), _GroupHeader = tiêu đề
+          // tháng / tuần (phân cấp), WorkRecord = ca làm, _DayItem = thống kê của ngày
+          // (đặt sau ca cuối cùng của ngày đó).
+          final items = <Object>[];
+          if (grouped) {
+            items.addAll(_buildGrouped(rs));
+          } else {
+            DateTime? currentWeek;
+            DateTime? currentDay;
+            void closeDay() {
+              final d = currentDay;
+              if (d == null) return;
+              items.add(_DayItem(d, summarize(rs, d, DateTime(d.year, d.month, d.day + 1))));
             }
-            final w = startOfWeek(r.start, DateTime.monday);
-            if (currentWeek != w) {
-              currentWeek = w;
-              items.add(w);
+
+            for (final r in rs) {
+              final day = dateOnly(r.start);
+              if (currentDay != day) {
+                closeDay();
+                currentDay = day;
+              }
+              final w = startOfWeek(r.start, DateTime.monday);
+              if (currentWeek != w) {
+                currentWeek = w;
+                items.add(w);
+              }
+              items.add(r);
             }
-            items.add(r);
+            closeDay();
           }
-          closeDay();
 
           final customLabel = (_preset == HistoryPreset.custom && _custom != null)
               ? '${dmyFmt.format(_custom!.start)} – ${dmyFmt.format(_custom!.end)}'
@@ -157,7 +264,7 @@ class _HistoryPageState extends State<HistoryPage> {
                               ChoiceChip(
                                 label: Text(e.value),
                                 selected: _preset == e.key,
-                                onSelected: (_) => setState(() => _preset = e.key),
+                                onSelected: (_) => _selectPreset(e.key),
                               ),
                             ChoiceChip(
                               avatar: const Icon(Icons.date_range_rounded, size: 18),
@@ -190,6 +297,17 @@ class _HistoryPageState extends State<HistoryPage> {
                           return WeekHeader(
                             monday: it,
                             summary: summarize(rs, it, DateTime(it.year, it.month, it.day + 7)),
+                          );
+                        }
+                        if (it is _GroupHeader) {
+                          return PeriodHeader(
+                            key: ValueKey(it.key),
+                            title: it.title,
+                            summary: it.summary,
+                            expanded: it.expanded,
+                            isMonth: it.isMonth,
+                            indent: it.indent,
+                            onTap: () => _toggle(it.key),
                           );
                         }
                         if (it is _DayItem) return DaySummaryCard(date: it.date, summary: it.summary);
