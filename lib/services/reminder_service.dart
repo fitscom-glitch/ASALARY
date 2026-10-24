@@ -34,11 +34,13 @@ class ReminderService {
   AndroidFlutterLocalNotificationsPlugin? get _android =>
       _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
-  /// Xin quyền hiện thông báo (Android 13 trở lên). Trả về true nếu được phép.
+  /// Xin quyền hiện thông báo và quyền báo thức chính xác (Android 13+). Trả về true nếu được phép.
   Future<bool> requestPermission() async {
     try {
       await _init();
-      return await _android?.requestNotificationsPermission() ?? true;
+      final notifGranted = await _android?.requestNotificationsPermission() ?? true;
+      final exactAlarmGranted = await _android?.requestExactAlarmsPermission() ?? true;
+      return notifGranted && exactAlarmGranted;
     } catch (_) {
       return false;
     }
@@ -71,8 +73,17 @@ class ReminderService {
   }
 
   Future<void> _schedule(int id, String title, String body, DateTime at, AndroidScheduleMode mode) async {
-    // Đổi giờ địa phương sang cùng thời điểm theo UTC: không cần cơ sở dữ liệu múi giờ.
-    final when = tz.TZDateTime.from(at, tz.UTC);
+    // Sửa lỗi múi giờ: Sử dụng tz.local để khớp với giờ thực tế của thiết bị thay vì tz.UTC.
+    final when = tz.TZDateTime(
+      tz.local,
+      at.year,
+      at.month,
+      at.day,
+      at.hour,
+      at.minute,
+      at.second,
+    );
+    
     try {
       await _plugin.zonedSchedule(id, title, body, when, _details(), androidScheduleMode: mode);
     } catch (_) {
