@@ -25,14 +25,14 @@ dependencies:
   pdf: ^3.11.3
   # Mã nguồn dùng Share.shareXFiles (API của share_plus 10.x).
   # Nếu nâng lên share_plus 11 trở lên, đổi sang SharePlus.instance.share(ShareParams(...)).
-  share_plus: ^10.1.4
+  share_plus: ^13.1.1
 
   # Khóa ứng dụng bằng vân tay / khuôn mặt; chọn file khi nhập dữ liệu sao lưu
   local_auth: ^2.3.0
   file_selector: ^1.0.3
 
   # Chọn nơi lưu file khi xuất dữ liệu (hộp thoại "Lưu thành" của hệ thống)
-  file_picker: ^11.0.3
+  file_picker: ^13.1.0
 
   # Thông báo nhắc giờ vào ca / ra ca (có chuông báo thức)
   flutter_local_notifications: ^19.0.0
