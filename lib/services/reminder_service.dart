@@ -34,14 +34,43 @@ class ReminderService {
   AndroidFlutterLocalNotificationsPlugin? get _android =>
       _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
-  /// Xin quyền hiện thông báo và quyền báo thức chính xác (Android 13+). Trả về true nếu được phép.
-  Future<bool> requestPermission() async {
+  /// Lỗi gần nhất khi xin quyền / kiểm tra quyền (để hiện cho người dùng thay vì nuốt mất).
+  String? lastError;
+
+  /// Thông báo của ứng dụng hiện có đang được bật trong hệ thống không (không hiện hộp thoại xin quyền).
+  Future<bool> notificationsEnabled() async {
     try {
       await _init();
-      final notifGranted = await _android?.requestNotificationsPermission() ?? true;
-      final exactAlarmGranted = await _android?.requestExactAlarmsPermission() ?? true;
-      return notifGranted && exactAlarmGranted;
-    } catch (_) {
+      return await _android?.areNotificationsEnabled() ?? true;
+    } catch (e) {
+      lastError = '$e';
+      return false;
+    }
+  }
+
+  /// Xin quyền hiện thông báo (Android 13 trở lên). Trả về true nếu được phép.
+  ///
+  /// Kết quả cuối cùng luôn dựa vào trạng thái thật của hệ thống (areNotificationsEnabled), vì
+  /// requestNotificationsPermission có thể trả về false/null khi quyền đã được cấp từ trước
+  /// hoặc người dùng vừa bật trong Cài đặt Android (hộp thoại xin quyền không hiện lại).
+  Future<bool> requestPermission() async {
+    lastError = null;
+    try {
+      await _init();
+      final android = _android;
+      if (android == null) return true;
+      if (await android.areNotificationsEnabled() ?? false) return true;
+      try {
+        if (await android.requestNotificationsPermission() ?? false) return true;
+      } catch (e) {
+        // Ví dụ "đang có yêu cầu quyền khác": vẫn kiểm tra lại trạng thái thật bên dưới.
+        lastError = '$e';
+      }
+      final enabled = await android.areNotificationsEnabled() ?? false;
+      if (enabled) lastError = null;
+      return enabled;
+    } catch (e) {
+      lastError = '$e';
       return false;
     }
   }
@@ -73,17 +102,8 @@ class ReminderService {
   }
 
   Future<void> _schedule(int id, String title, String body, DateTime at, AndroidScheduleMode mode) async {
-    // Sửa lỗi múi giờ: Sử dụng tz.local để khớp với giờ thực tế của thiết bị thay vì tz.UTC.
-    final when = tz.TZDateTime(
-      tz.local,
-      at.year,
-      at.month,
-      at.day,
-      at.hour,
-      at.minute,
-      at.second,
-    );
-    
+    // Đổi giờ địa phương sang cùng thời điểm theo UTC: không cần cơ sở dữ liệu múi giờ.
+    final when = tz.TZDateTime.from(at, tz.UTC);
     try {
       await _plugin.zonedSchedule(id, title, body, when, _details(), androidScheduleMode: mode);
     } catch (_) {
