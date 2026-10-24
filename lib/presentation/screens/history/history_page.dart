@@ -12,7 +12,6 @@ import 'package:theo_doi_luong/presentation/screens/history/widgets/day_summary_
 import 'package:theo_doi_luong/presentation/screens/history/widgets/period_header.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/range_summary_card.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/record_tile.dart';
-import 'package:theo_doi_luong/presentation/screens/history/widgets/week_header.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 
 typedef RecordAction = void Function(BuildContext context, WorkRecord record);
@@ -108,6 +107,10 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  /// Số ngày của khoảng đã chọn (tính cả ngày đầu và ngày cuối, không bị lệch do đổi giờ mùa hè).
+  int _dayCount(DateTimeRange r) =>
+      DateTime.utc(r.end.year, r.end.month, r.end.day).difference(DateTime.utc(r.start.year, r.start.month, r.start.day)).inDays + 1;
+
   /// Tuần này: liệt kê ngày. Tháng: liệt kê tuần. Năm nay: tháng → tuần → ngày.
   /// Tất cả: năm → tháng → tuần → ngày.
   List<Object> _buildGrouped(List<WorkRecord> rs) {
@@ -122,7 +125,13 @@ class _HistoryPageState extends State<HistoryPage> {
       case HistoryPreset.all:
         _addYears(out, rs);
       case HistoryPreset.custom:
-        break;
+        // Khoảng ngày dài hơn 1 tuần: năm → tháng → tuần → ngày. Từ 1 tuần trở xuống: liệt kê ngày.
+        final r = _custom;
+        if (r != null && _dayCount(r) <= 7) {
+          _addDays(out, rs);
+        } else {
+          _addYears(out, rs);
+        }
     }
     return out;
   }
@@ -231,40 +240,10 @@ class _HistoryPageState extends State<HistoryPage> {
                 ];
           final sum = summarize(rs, DateTime(1970), DateTime(3000));
 
-          // Tất cả / Tuần này / Tháng / Năm: danh sách phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn.
-          // Chọn khoảng ngày: giữ nguyên danh sách phẳng theo tuần.
-          final grouped = _preset != HistoryPreset.custom;
-
-          // Danh sách hiển thị: DateTime = tiêu đề tuần (danh sách phẳng), _GroupHeader = tiêu đề
-          // tháng / tuần (phân cấp), WorkRecord = ca làm, _DayItem = thống kê của ngày
-          // (đặt sau ca cuối cùng của ngày đó).
-          final items = <Object>[];
-          if (grouped) {
-            items.addAll(_buildGrouped(rs));
-          } else {
-            DateTime? currentWeek;
-            DateTime? currentDay;
-            void closeDay() {
-              final d = currentDay;
-              if (d == null) return;
-              items.add(_DayItem(d, summarize(rs, d, DateTime(d.year, d.month, d.day + 1))));
-            }
-
-            for (final r in rs) {
-              final day = dateOnly(r.start);
-              if (currentDay != day) {
-                closeDay();
-                currentDay = day;
-              }
-              final w = startOfWeek(r.start, DateTime.monday);
-              if (currentWeek != w) {
-                currentWeek = w;
-                items.add(w);
-              }
-              items.add(r);
-            }
-            closeDay();
-          }
+          // Danh sách hiển thị (phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn):
+          // _GroupHeader = tiêu đề năm / tháng / tuần, WorkRecord = ca làm,
+          // _DayItem = thống kê của ngày (đặt sau ca cuối cùng của ngày đó).
+          final items = _buildGrouped(rs);
 
           final customLabel = (_preset == HistoryPreset.custom && _custom != null)
               ? '${dmyFmt.format(_custom!.start)} – ${dmyFmt.format(_custom!.end)}'
@@ -318,12 +297,6 @@ class _HistoryPageState extends State<HistoryPage> {
                       itemCount: items.length,
                       itemBuilder: (context, i) {
                         final it = items[i];
-                        if (it is DateTime) {
-                          return WeekHeader(
-                            monday: it,
-                            summary: summarize(rs, it, DateTime(it.year, it.month, it.day + 7)),
-                          );
-                        }
                         if (it is _GroupHeader) {
                           return PeriodHeader(
                             key: ValueKey(it.key),
