@@ -108,7 +108,8 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  /// Tuần này: liệt kê ngày. Tháng: liệt kê tuần. Năm: liệt kê tháng → tuần → ngày.
+  /// Tuần này: liệt kê ngày. Tháng: liệt kê tuần. Năm nay: tháng → tuần → ngày.
+  /// Tất cả: năm → tháng → tuần → ngày.
   List<Object> _buildGrouped(List<WorkRecord> rs) {
     final out = <Object>[];
     switch (_preset) {
@@ -117,22 +118,46 @@ class _HistoryPageState extends State<HistoryPage> {
       case HistoryPreset.month || HistoryPreset.lastMonth:
         _addWeeks(out, rs);
       case HistoryPreset.year:
-        for (final (month, list) in _groupBy(rs, (r) => DateTime(r.start.year, r.start.month))) {
-          final key = 'm${month.toIso8601String()}';
-          final open = _open.contains(key);
-          out.add(_GroupHeader(
-            key: key,
-            title: periodTitle(CompareKind.month, month),
-            summary: _sumOf(list),
-            expanded: open,
-            isMonth: true,
-          ));
-          if (open) _addWeeks(out, list, scope: key, indent: 12);
-        }
-      case HistoryPreset.all || HistoryPreset.custom:
+        _addMonths(out, rs);
+      case HistoryPreset.all:
+        _addYears(out, rs);
+      case HistoryPreset.custom:
         break;
     }
     return out;
+  }
+
+  /// Các tháng; tháng nào đang mở thì liệt kê tiếp các tuần bên dưới.
+  void _addMonths(List<Object> out, List<WorkRecord> rs, {String scope = '', double indent = 0}) {
+    for (final (month, list) in _groupBy(rs, (r) => DateTime(r.start.year, r.start.month))) {
+      final key = 'm$scope|${month.toIso8601String()}';
+      final open = _open.contains(key);
+      out.add(_GroupHeader(
+        key: key,
+        title: periodTitle(CompareKind.month, month),
+        summary: _sumOf(list),
+        expanded: open,
+        isMonth: true,
+        indent: indent,
+      ));
+      if (open) _addWeeks(out, list, scope: key, indent: indent + 12);
+    }
+  }
+
+  /// Các năm; năm nào đang mở thì liệt kê tiếp các tháng bên dưới.
+  void _addYears(List<Object> out, List<WorkRecord> rs) {
+    for (final (year, list) in _groupBy(rs, (r) => DateTime(r.start.year))) {
+      final key = 'y${year.toIso8601String()}';
+      final open = _open.contains(key);
+      out.add(_GroupHeader(
+        key: key,
+        title: periodTitle(CompareKind.year, year),
+        summary: _sumOf(list),
+        expanded: open,
+        isMonth: true,
+      ));
+      if (open) _addMonths(out, list, scope: key, indent: 12);
+    }
   }
 
   static const _presetLabels = {
@@ -206,9 +231,9 @@ class _HistoryPageState extends State<HistoryPage> {
                 ];
           final sum = summarize(rs, DateTime(1970), DateTime(3000));
 
-          // Tuần này / Tháng / Năm: danh sách phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn.
-          // Tất cả và Chọn khoảng ngày: giữ nguyên danh sách phẳng theo tuần.
-          final grouped = _preset != HistoryPreset.all && _preset != HistoryPreset.custom;
+          // Tất cả / Tuần này / Tháng / Năm: danh sách phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn.
+          // Chọn khoảng ngày: giữ nguyên danh sách phẳng theo tuần.
+          final grouped = _preset != HistoryPreset.custom;
 
           // Danh sách hiển thị: DateTime = tiêu đề tuần (danh sách phẳng), _GroupHeader = tiêu đề
           // tháng / tuần (phân cấp), WorkRecord = ca làm, _DayItem = thống kê của ngày
