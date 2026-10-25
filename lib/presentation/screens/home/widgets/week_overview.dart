@@ -19,6 +19,9 @@ String _shortH(double h) {
 
 int _flex(double h) => math.max(1, (h * 60).round());
 
+/// Độ đậm của màu cột (nhạt, dễ nhìn).
+const _soft = 0.45;
+
 class _Legend extends StatelessWidget {
   const _Legend(this.color, this.text);
   final Color color;
@@ -44,78 +47,95 @@ class _DayBar extends StatelessWidget {
     required this.ot,
     required this.dbl,
     required this.maxH,
+    this.onTap,
   });
   final String label;
   final bool today, holiday;
   final double reg, ot, dbl, maxH;
 
+  /// Bấm vào ngày có giờ làm để mở chi tiết ngày đó (null: ngày chưa có ca, không bấm được).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final total = reg + ot + dbl;
     const barArea = 78.0;
-    final h = total <= 0 ? 4.0 : math.max(6.0, barArea * total / maxH);
+    // Cột tô màu nhạt, chiều cao tỉ lệ với số giờ làm trong ngày (như biểu đồ cột).
+    final h = total <= 0 ? 0.0 : math.max(8.0, barArea * total / maxH);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: today ? AppColors.tealMid.withValues(alpha: 0.08) : null,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 14,
-            child: total > 0
-                ? Text(_shortH(total),
-                    style: const TextStyle(fontSize: 10, color: AppColors.muted, fontWeight: FontWeight.w600))
-                : null,
-          ),
-          const SizedBox(height: 2),
-          SizedBox(
-            height: barArea,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeOutCubic,
-                width: 18,
-                height: h,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: total <= 0 ? const Color(0xFFE2E8F0) : null,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: total <= 0
-                    ? null
-                    : Column(
-                        children: [
-                          if (dbl > 0) Expanded(flex: _flex(dbl), child: const ColoredBox(color: Colors.deepOrange)),
-                          if (ot > 0) Expanded(flex: _flex(ot), child: const ColoredBox(color: Colors.indigo)),
-                          if (reg > 0) Expanded(flex: _flex(reg), child: const ColoredBox(color: AppColors.tealMid)),
-                        ],
-                      ),
+    return Material(
+      color: today ? AppColors.tealMid.withValues(alpha: 0.08) : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 14,
+                child: total > 0
+                    ? Text(_shortH(total),
+                        style: const TextStyle(fontSize: 10, color: AppColors.muted, fontWeight: FontWeight.w600))
+                    : null,
               ),
-            ),
+              const SizedBox(height: 2),
+              SizedBox(
+                height: barArea,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      width: double.infinity,
+                      height: h,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+                      child: total <= 0
+                          ? null
+                          : Column(
+                              // stretch: nếu không, ColoredBox không có con sẽ có chiều rộng 0 và cột không hiện.
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (dbl > 0) Expanded(flex: _flex(dbl), child: ColoredBox(color: Colors.deepOrange.withValues(alpha: _soft))),
+                                if (ot > 0) Expanded(flex: _flex(ot), child: ColoredBox(color: Colors.indigo.withValues(alpha: _soft))),
+                                if (reg > 0) Expanded(flex: _flex(reg), child: ColoredBox(color: AppColors.tealMid.withValues(alpha: _soft))),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                holiday ? '$label★' : label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: today ? FontWeight.w700 : FontWeight.w500,
+                  color: holiday ? Colors.deepOrange : (today ? AppColors.tealMid : AppColors.muted),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            holiday ? '$label★' : label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: today ? FontWeight.w700 : FontWeight.w500,
-              color: holiday ? Colors.deepOrange : (today ? AppColors.tealMid : AppColors.muted),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class WeekOverview extends StatelessWidget {
-  const WeekOverview({super.key, required this.records, required this.holidays});
+  const WeekOverview({super.key, required this.records, required this.holidays, this.onDayTap});
   final List<WorkRecord> records;
   final Set<String> holidays;
+
+  /// Gọi khi bấm vào một ngày có giờ làm.
+  final void Function(DateTime day)? onDayTap;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +189,7 @@ class WeekOverview extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Row(
-              spacing: 4,
+              spacing: 2,
               children: [
                 for (var i = 0; i < 7; i++)
                   Expanded(
@@ -181,6 +201,7 @@ class WeekOverview extends StatelessWidget {
                       ot: ot[i],
                       dbl: dbl[i],
                       maxH: maxH,
+                      onTap: onDayTap != null && reg[i] + ot[i] + dbl[i] > 0 ? () => onDayTap!(days[i]) : null,
                     ),
                   ),
               ],
