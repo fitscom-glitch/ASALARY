@@ -18,9 +18,13 @@ typedef RecordAction = void Function(BuildContext context, WorkRecord record);
 
 /// Thống kê của một ngày trong danh sách lịch sử.
 class _DayItem {
-  const _DayItem(this.date, this.summary);
+  const _DayItem(this.date, this.summary, {required this.expanded});
   final DateTime date;
   final PeriodSummary summary;
+  final bool expanded;
+
+  /// Khóa trạng thái mở/đóng của bảng thống kê ngày.
+  String get key => 'd${date.toIso8601String()}';
 }
 
 /// Tiêu đề tháng / tuần có thể mở rộng, thu gọn.
@@ -86,7 +90,8 @@ class _HistoryPageState extends State<HistoryPage> {
   void _addDays(List<Object> out, List<WorkRecord> rs) {
     for (final (day, list) in _groupBy(rs, (r) => dateOnly(r.start))) {
       out.addAll(list);
-      out.add(_DayItem(day, _sumOf(list)));
+      final d = _DayItem(day, _sumOf(list), expanded: _open.contains('d${day.toIso8601String()}'));
+      out.add(d);
     }
   }
 
@@ -308,7 +313,14 @@ class _HistoryPageState extends State<HistoryPage> {
                             onTap: () => _toggle(it.key),
                           );
                         }
-                        if (it is _DayItem) return DaySummaryCard(date: it.date, summary: it.summary);
+                        if (it is _DayItem) {
+                          return DaySummaryCard(
+                            date: it.date,
+                            summary: it.summary,
+                            expanded: it.expanded,
+                            onTap: () => _toggle(it.key),
+                          );
+                        }
                         final r = it as WorkRecord;
                         return RecordTile(
                           key: ValueKey(r.id),
