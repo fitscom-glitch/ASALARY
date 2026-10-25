@@ -90,6 +90,46 @@ elif groovy.exists():
 else:
     fail("khong tim thay build.gradle(.kts)")
 
+# 4b. Ký APK bằng debug.keystore cố định ở gốc repo (không phụ thuộc ~/.android của máy build).
+# Nếu không, Gradle tự tạo khóa debug mới mỗi lần build nên các bản APK không cài đè lên nhau được.
+KEYSTORE = pathlib.Path("debug.keystore").resolve()
+if not KEYSTORE.exists():
+    fail("khong tim thay debug.keystore o goc repo")
+if kts.exists():
+    t = kts.read_text()
+    if "asalary-signing" not in t:
+        t += """
+// asalary-signing: ky bang khoa co dinh trong repo de cac ban build cai de duoc len nhau
+android {
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("%s")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+}
+""" % KEYSTORE.as_posix()
+        kts.write_text(t)
+elif groovy.exists():
+    t = groovy.read_text()
+    if "asalary-signing" not in t:
+        t += """
+// asalary-signing: ky bang khoa co dinh trong repo de cac ban build cai de duoc len nhau
+android {
+    signingConfigs {
+        debug {
+            storeFile file('%s')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+}
+""" % KEYSTORE.as_posix()
+        groovy.write_text(t)
+
 # 5. Tên ứng dụng hiển thị trên màn hình chính
 text = manifest.read_text()
 text, n = re.subn(r'(<application[^>]*?android:label=")[^"]*(")', r"\g<1>%s\g<2>" % APP_LABEL, text, count=1, flags=re.S)
@@ -102,4 +142,4 @@ if not (RES_SRC / "mipmap-anydpi-v26" / "ic_launcher.xml").exists():
     fail("thieu thu muc android_res (bieu tuong ung dung)")
 shutil.copytree(RES_SRC, MAIN / "res", dirs_exist_ok=True)
 
-print("Da cau hinh Android: ten ASALARY, bieu tuong chu S, van tay, thong bao, desugaring")
+print("Da cau hinh Android: ten ASALARY, bieu tuong chu S, van tay, thong bao, desugaring, khoa ky co dinh")
