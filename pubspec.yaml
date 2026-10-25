@@ -1,7 +1,7 @@
 name: theo_doi_luong
 description: ASALARY - ứng dụng chấm công và ước tính lương (giờ thường, OT, ngày lễ), xuất CSV, Excel, PDF.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ^3.6.0
@@ -25,7 +25,7 @@ dependencies:
   pdf: ^3.11.3
   # Mã nguồn dùng Share.shareXFiles (API của share_plus 10.x).
   # Nếu nâng lên share_plus 11 trở lên, đổi sang SharePlus.instance.share(ShareParams(...)).
-  share_plus: ^13.1.1
+  share_plus: ^10.1.4
 
   # Khóa ứng dụng bằng vân tay / khuôn mặt; chọn file khi nhập dữ liệu sao lưu
   local_auth: ^2.3.0
