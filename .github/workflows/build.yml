@@ -69,7 +69,15 @@ jobs:
 
       - name: Build ASALARY APK
         working-directory: app
-        run: flutter build apk --release --no-shrink --target-platform android-arm64 --build-number=${{ github.run_number }}
+        # versionCode tính theo số phút từ năm 1970: luôn tăng và luôn lớn hơn bản đã cài từ repo hoặc workflow khác
+        run: flutter build apk --release --no-shrink --target-platform android-arm64 --build-number=$(( $(date +%s) / 60 ))
+
+      - name: In chu ky va phien ban APK
+        run: |
+          APK=app/build/app/outputs/flutter-apk/app-release.apk
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/apksigner verify --print-certs $APK | grep -E "SHA-256" || true
+          $BT/aapt dump badging $APK | grep -E "package:" || true
 
       - uses: actions/upload-artifact@v4
         with:
