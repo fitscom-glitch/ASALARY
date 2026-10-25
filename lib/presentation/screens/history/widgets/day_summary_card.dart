@@ -15,23 +15,29 @@ class DaySummaryCard extends StatelessWidget {
     super.key,
     required this.date,
     required this.summary,
-    required this.expanded,
-    required this.onTap,
+    this.expanded = true,
+    this.onTap,
   });
   final DateTime date;
   final PeriodSummary summary;
   final bool expanded;
-  final VoidCallback onTap;
+
+  /// null: bảng luôn mở đầy đủ và không bấm được (dùng trong bảng chi tiết ngày).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final s = summary;
+    final collapsible = onTap != null;
+    final expanded = this.expanded || !collapsible;
     final total = _Row(label: 'Tổng cộng', hours: fmtHours(s.total), pay: money(s.earned), color: AppColors.tealDark, strong: true);
-    final chevron = AnimatedRotation(
-      turns: expanded ? 0.5 : 0,
-      duration: const Duration(milliseconds: 180),
-      child: const Icon(Icons.expand_more_rounded, color: AppColors.muted),
-    );
+    final Widget chevron = !collapsible
+        ? const SizedBox(width: 8)
+        : AnimatedRotation(
+            turns: expanded ? 0.5 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: const Icon(Icons.expand_more_rounded, color: AppColors.muted),
+          );
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
       child: Material(
