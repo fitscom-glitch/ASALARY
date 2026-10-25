@@ -69,8 +69,14 @@ jobs:
 
       - name: Build ASALARY APK
         working-directory: app
-        # versionCode tính theo số phút từ năm 1970: luôn tăng và luôn lớn hơn bản đã cài từ repo hoặc workflow khác
-        run: flutter build apk --release --no-shrink --target-platform android-arm64 --build-number=$(( $(date +%s) / 60 ))
+        # Tên phiên bản (vd 1.1.0) lấy từ dòng `version:` trong pubspec.yaml, dùng cho cả Android lẫn trong app.
+        # versionCode tính theo số phút từ năm 1970: luôn tăng và luôn lớn hơn bản đã cài từ repo hoặc workflow khác.
+        run: |
+          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\+.*//' | tr -d '[:space:]')
+          echo "Phien ban: $VERSION"
+          flutter build apk --release --no-shrink --target-platform android-arm64 \
+            --build-name="$VERSION" --build-number=$(( $(date +%s) / 60 )) \
+            --dart-define=APP_VERSION="$VERSION"
 
       - name: In chu ky va phien ban APK
         run: |
