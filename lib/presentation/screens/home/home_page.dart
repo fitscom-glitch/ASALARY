@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:theo_doi_luong/core/constants/app_colors.dart';
 import 'package:theo_doi_luong/core/constants/app_constants.dart';
 import 'package:theo_doi_luong/core/constants/platform_features.dart';
+import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
@@ -17,6 +18,8 @@ import 'package:theo_doi_luong/presentation/screens/avatar/avatar_sheet.dart';
 import 'package:theo_doi_luong/presentation/screens/compare/compare_page.dart';
 import 'package:theo_doi_luong/presentation/screens/export/export_flow.dart';
 import 'package:theo_doi_luong/presentation/screens/history/history_page.dart';
+import 'package:theo_doi_luong/presentation/screens/history/widgets/day_summary_card.dart';
+import 'package:theo_doi_luong/presentation/screens/history/widgets/record_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/compare_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/history_preview_card.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/profile_header.dart';
@@ -25,7 +28,6 @@ import 'package:theo_doi_luong/presentation/screens/home/widgets/stat_tile.dart'
 import 'package:theo_doi_luong/presentation/screens/home/widgets/week_overview.dart';
 import 'package:theo_doi_luong/presentation/screens/settings/settings_page.dart';
 import 'package:theo_doi_luong/presentation/screens/shift/record_editor.dart';
-import 'package:theo_doi_luong/presentation/screens/shift/start_shift_dialog.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 import 'package:theo_doi_luong/presentation/widgets/confirm_dialog.dart';
 import 'package:theo_doi_luong/presentation/widgets/toast.dart';
@@ -149,7 +151,11 @@ class HomePage extends StatelessWidget {
                           onEnd: () => _endShift(context),
                           onDiscard: () => _discardShift(context),
                         ),
-                        WeekOverview(records: records, holidays: holidays),
+                        WeekOverview(
+                          records: records,
+                          holidays: holidays,
+                          onDayTap: (day) => _openDay(context, day),
+                        ),
                         Row(
                           spacing: 10,
                           children: [
@@ -209,16 +215,56 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Future<void> _startShift(BuildContext context) async {
-    final rate = await showDialog<double>(
-      context: context,
-      builder: (_) => StartShiftDialog(
-        defaultRate: c.settings.hourlyRate,
-        dayType: c.dayTypeFor(DateTime.now()),
-      ),
-    );
-    if (rate != null) await c.checkIn(rate);
-  }
+  /// Vào ca ngay với mức lương theo giờ mặc định trong Cài đặt, không hỏi lại.
+  Future<void> _startShift(BuildContext context) => c.checkIn(c.settings.hourlyRate);
+
+  /// Bảng chi tiết một ngày: các ca trong ngày và thống kê ngày đầy đủ.
+  Future<void> _openDay(BuildContext context, DateTime day) => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (sheetContext) => ListenableBuilder(
+          listenable: c,
+          builder: (_, __) {
+            final rs = [
+              for (final r in c.records)
+                if (dateOnly(r.start) == day) r
+            ];
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    '${weekdayFull[day.weekday - 1]}, ${dmyFmt.format(day)}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (rs.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('Không có ca làm nào trong khoảng này.')),
+                  )
+                else ...[
+                  for (final r in rs)
+                    RecordTile(
+                      key: ValueKey(r.id),
+                      record: r,
+                      onTap: () => _editRecord(sheetContext, r),
+                      onDelete: () => _deleteRecord(sheetContext, r),
+                    ),
+                  DaySummaryCard(
+                    date: day,
+                    summary: summarize(rs, day, DateTime(day.year, day.month, day.day + 1)),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      );
 
   Future<void> _endShift(BuildContext context) async {
     final start = c.active?.start;
