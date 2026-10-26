@@ -86,8 +86,8 @@ class _DayBar extends StatelessWidget {
                 height: barArea,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    // Ngày hôm nay chỉ đổi màu nền cột, kích thước các cột luôn bằng nhau.
-                    color: today ? AppColors.tealMid.withValues(alpha: 0.14) : const Color(0xFFF1F5F9),
+                    // Ngày hôm nay có nền cột xám đậm hơn một chút, kích thước các cột luôn bằng nhau.
+                    color: today ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Align(
@@ -114,13 +114,30 @@ class _DayBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                holiday ? '$label★' : label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: today ? FontWeight.w700 : FontWeight.w500,
-                  color: holiday ? Colors.deepOrange : (today ? AppColors.tealMid : AppColors.muted),
+              const SizedBox(height: 4),
+              // Chiều cao cố định để ngày hôm nay (có vòng tròn) không làm cột lệch so với các ngày khác.
+              SizedBox(
+                height: 28,
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: today
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(color: AppColors.tealMid, width: 1.6),
+                          )
+                        : null,
+                    child: Text(
+                      holiday ? '$label★' : label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: today ? FontWeight.w700 : FontWeight.w500,
+                        color: holiday ? Colors.deepOrange : (today ? AppColors.tealMid : AppColors.muted),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -195,10 +212,15 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
     _anim.forward(from: 0);
   }
 
+  /// Tuần hiện tại là "Tuần này"; các tuần khác ghi số tuần trong năm (theo ISO 8601) và năm,
+  /// ví dụ "Tuần 30 [2026]".
   String _title(int offset) {
     if (offset == 0) return 'Tuần này';
-    if (offset == 1) return 'Tuần trước';
-    return '$offset tuần trước';
+    final thursday = _mondayOf(offset).add(const Duration(days: 3));
+    final dayOfYear = DateTime.utc(thursday.year, thursday.month, thursday.day)
+        .difference(DateTime.utc(thursday.year, 1, 1))
+        .inDays;
+    return 'Tuần ${dayOfYear ~/ 7 + 1} [${thursday.year}]';
   }
 
   Widget _page(BuildContext context, int offset, int maxBack) {
@@ -240,7 +262,12 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
         Row(
           children: [
             Expanded(
-              child: Text(_title(offset), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              child: Text(
+                _title(offset),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
             ),
             _ArrowButton(
               icon: Icons.chevron_left_rounded,
@@ -253,8 +280,13 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
             ),
             _ArrowButton(
               icon: Icons.chevron_right_rounded,
-              tooltip: 'Tuần này',
+              tooltip: 'Tuần sau',
               onPressed: offset > 0 ? () => _go(offset - 1, maxBack) : null,
+            ),
+            _ArrowButton(
+              icon: Icons.keyboard_double_arrow_right_rounded,
+              tooltip: 'Về tuần này',
+              onPressed: offset > 0 ? () => _go(0, maxBack) : null,
             ),
           ],
         ),
