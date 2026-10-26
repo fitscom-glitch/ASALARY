@@ -51,10 +51,14 @@ class _DayBar extends StatelessWidget {
     required this.dbl,
     required this.maxH,
     this.onTap,
+    this.todayColor = AppColors.tealMid,
   });
   final String label;
   final bool today, holiday;
   final double reg, ot, dbl, maxH;
+
+  /// Màu vòng tròn của ngày hôm nay: theo loại giờ đang được tính (thường, OT, lễ).
+  final Color todayColor;
 
   /// Bấm vào ngày có giờ làm để mở chi tiết ngày đó (null: ngày chưa có ca, không bấm được).
   final VoidCallback? onTap;
@@ -64,7 +68,8 @@ class _DayBar extends StatelessWidget {
     final total = reg + ot + dbl;
     const barArea = 78.0;
     // Cột tô màu nhạt, chiều cao tỉ lệ với số giờ làm trong ngày (như biểu đồ cột).
-    final h = total <= 0 ? 0.0 : math.max(8.0, barArea * total / maxH);
+    const inner = barArea - 2.4; // trừ viền 1.2 mỗi bên của cột
+    final h = total <= 0 ? 0.0 : math.max(8.0, inner * total / maxH);
 
     return Material(
       color: Colors.transparent,
@@ -88,9 +93,11 @@ class _DayBar extends StatelessWidget {
                 height: barArea,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    // Ngày hôm nay có nền cột xám đậm hơn một chút, kích thước các cột luôn bằng nhau.
-                    color: today ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
+                    color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
+                    // Ngày hôm nay: viền mảnh màu nổi bao quanh cột. Các cột khác có viền trong suốt cùng độ dày
+                    // nên kích thước các cột luôn bằng nhau.
+                    border: Border.all(color: today ? AppColors.tealMid : Colors.transparent, width: 1.2),
                   ),
                   child: Align(
                     alignment: Alignment.bottomCenter,
@@ -127,8 +134,8 @@ class _DayBar extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: today
                         ? BoxDecoration(
+                            color: todayColor,
                             borderRadius: BorderRadius.circular(13),
-                            border: Border.all(color: AppColors.tealMid, width: 1.6),
                           )
                         : null,
                     child: Text(
@@ -136,7 +143,7 @@ class _DayBar extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: today ? FontWeight.w700 : FontWeight.w500,
-                        color: holiday ? Colors.deepOrange : (today ? AppColors.tealMid : AppColors.muted),
+                        color: today ? Colors.white : (holiday ? Colors.deepOrange : AppColors.muted),
                       ),
                     ),
                   ),
@@ -153,17 +160,11 @@ class _DayBar extends StatelessWidget {
 /// Thống kê tuần: vuốt sang phải để xem tuần trước đó (lần lượt lùi về quá khứ),
 /// vuốt sang trái để quay lại các tuần sau, cho đến tuần hiện tại.
 class WeekOverview extends StatefulWidget {
-  const WeekOverview({
-    super.key,
-    required this.records,
-    required this.holidays,
-    this.active,
-    this.onDayTap,
-  });
+  const WeekOverview({super.key, required this.records, required this.holidays, this.active, this.onDayTap});
   final List<WorkRecord> records;
   final Set<String> holidays;
 
-  /// Ca đang làm: được cộng vào cột của ngày bắt đầu ca (tính đến phút hiện tại).
+  /// Ca đang làm (nếu có): được tính vào giờ của hôm nay để đổi màu vòng tròn ngày hiện tại.
   final ActiveShift? active;
 
   /// Gọi khi bấm vào một ngày có giờ làm.
@@ -190,19 +191,29 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
     });
 
   Timer? _timer;
-  int _minute = DateTime.now().millisecondsSinceEpoch ~/ 60000;
 
   @override
   void initState() {
     super.initState();
-    // Chỉ dựng lại khi sang phút mới và đang có ca đang làm.
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      final m = DateTime.now().millisecondsSinceEpoch ~/ 60000;
-      if (m != _minute) {
-        _minute = m;
-        if (mounted && widget.active != null) setState(() {});
-      }
-    });
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant WeekOverview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncTimer();
+  }
+
+  /// Khi đang trong ca, làm mới định kỳ để màu vòng tròn đổi đúng lúc (đủ 8 giờ, đủ 40 giờ...).
+  void _syncTimer() {
+    if (widget.active != null && _timer == null) {
+      _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (widget.active == null && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
+    }
   }
 
   @override
@@ -210,6 +221,38 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
     _timer?.cancel();
     _anim.dispose();
     super.dispose();
+  }
+
+  /// Màu vòng tròn ngày hôm nay = loại giờ mà phút làm việc tiếp theo của hôm nay sẽ được tính.
+  /// Dùng chính PayCalculator nên khớp với cách tính lương (kể cả ca đang làm):
+  ///  - ngày lễ: x2 (màu lễ);
+  ///  - ngày thường: giờ thường cho đến khi đủ 8 giờ trong ngày (hoặc đủ 40 giờ/tuần), sau đó OT;
+  ///  - thứ 7, CN: giờ thường nếu đang bù cho đủ 40 giờ, đến khi đủ 40 giờ (hoặc quá 8 giờ) thì OT.
+  Color _todayColor() {
+    final now = DateTime.now();
+    final end = floorMinute(now);
+    final monday = _mondayOf(0);
+    final next = DateTime(monday.year, monday.month, monday.day + 7);
+    final raw = <WorkRecord>[
+      for (final r in widget.records)
+        if (!r.start.isBefore(monday) && r.start.isBefore(next)) r,
+    ];
+    final a = widget.active;
+    if (a != null && !a.start.isBefore(monday) && end.isAfter(a.start)) {
+      raw.add(WorkRecord(id: -2, start: a.start, end: end, dayType: 'Thường', hourlyRate: a.rate));
+    }
+    const probeId = -1;
+    raw.add(WorkRecord(
+      id: probeId,
+      start: end,
+      end: end.add(const Duration(minutes: 1)),
+      dayType: 'Thường',
+      hourlyRate: 1,
+    ));
+    final probe = PayCalculator.calculate(raw, widget.holidays).firstWhere((r) => r.id == probeId);
+    if (probe.doubleHours > 0) return Colors.deepOrange;
+    if (probe.otHours > 0) return Colors.indigo;
+    return AppColors.tealMid;
   }
 
   DateTime _mondayOf(int offset) {
@@ -240,16 +283,17 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
     _anim.forward(from: 0);
   }
 
-  /// Tuần hiện tại là "Tuần này"; các tuần khác ghi số tuần trong năm (theo ISO 8601) và năm,
-  /// ví dụ "Tuần 30 [2026]".
-  String _title(int offset) {
-    if (offset == 0) return 'Tuần này';
+  /// Số tuần trong năm theo ISO 8601 và năm của tuần đó, ví dụ "30 [2026]".
+  String _weekNo(int offset) {
     final thursday = _mondayOf(offset).add(const Duration(days: 3));
     final dayOfYear = DateTime.utc(thursday.year, thursday.month, thursday.day)
         .difference(DateTime.utc(thursday.year, 1, 1))
         .inDays;
-    return 'Tuần ${dayOfYear ~/ 7 + 1} [${thursday.year}]';
+    return '${dayOfYear ~/ 7 + 1} [${thursday.year}]';
   }
+
+  /// Tuần hiện tại: "Tuần này 43 [2026]"; các tuần khác: "Tuần 40 [2026]".
+  String _title(int offset) => offset == 0 ? 'Tuần này ${_weekNo(0)}' : 'Tuần ${_weekNo(offset)}';
 
   Widget _page(BuildContext context, int offset, int maxBack) {
     final now = DateTime.now();
@@ -266,23 +310,6 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
       reg[i] += r.regularHours;
       ot[i] += r.otHours;
       dbl[i] += r.doubleHours;
-    }
-
-    // Ca đang làm (chưa "Ra ca") được tính đến phút hiện tại vào cột của ngày bắt đầu ca.
-    final a = widget.active;
-    final liveEnd = floorMinute(now);
-    if (a != null && !a.start.isBefore(monday) && a.start.isBefore(next) && liveEnd.isAfter(a.start)) {
-      const probeId = -1;
-      final live = PayCalculator.calculate([
-        for (final r in widget.records)
-          if (!r.start.isBefore(monday) && r.start.isBefore(next)) r,
-        WorkRecord(id: probeId, start: a.start, end: liveEnd, dayType: 'Thường', hourlyRate: a.rate),
-      ], holidays)
-          .firstWhere((r) => r.id == probeId);
-      final i = a.start.weekday - 1;
-      reg[i] += live.regularHours;
-      ot[i] += live.otHours;
-      dbl[i] += live.doubleHours;
     }
     final maxH = math.max(
       10.0,
@@ -305,23 +332,25 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Tên tuần và khoảng ngày xếp dọc để tên tuần có đủ chỗ hiển thị đầy đủ (không bị cắt chữ).
             Expanded(
-              child: Text(
-                _title(offset),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_title(offset), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  Text(
+                    '${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
+                    style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                  ),
+                ],
               ),
             ),
             _ArrowButton(
               icon: Icons.chevron_left_rounded,
               tooltip: 'Tuần trước',
               onPressed: offset < maxBack ? () => _go(offset + 1, maxBack) : null,
-            ),
-            Text(
-              '${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
-              style: const TextStyle(color: AppColors.muted),
             ),
             _ArrowButton(
               icon: Icons.chevron_right_rounded,
@@ -349,6 +378,7 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
                   ot: ot[i],
                   dbl: dbl[i],
                   maxH: maxH,
+                  todayColor: offset == 0 ? _todayColor() : AppColors.tealMid,
                   onTap: widget.onDayTap != null && reg[i] + ot[i] + dbl[i] > 0
                       ? () => widget.onDayTap!(days[i])
                       : null,
