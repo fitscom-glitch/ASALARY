@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Text;
@@ -8,6 +9,7 @@ import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
+import 'package:theo_doi_luong/data/preferences/active_shift.dart';
 import 'package:theo_doi_luong/logic/pay_calculator.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 
@@ -151,9 +153,18 @@ class _DayBar extends StatelessWidget {
 /// Thống kê tuần: vuốt sang phải để xem tuần trước đó (lần lượt lùi về quá khứ),
 /// vuốt sang trái để quay lại các tuần sau, cho đến tuần hiện tại.
 class WeekOverview extends StatefulWidget {
-  const WeekOverview({super.key, required this.records, required this.holidays, this.onDayTap});
+  const WeekOverview({
+    super.key,
+    required this.records,
+    required this.holidays,
+    this.active,
+    this.onDayTap,
+  });
   final List<WorkRecord> records;
   final Set<String> holidays;
+
+  /// Ca đang làm: được cộng vào cột của ngày bắt đầu ca (tính đến phút hiện tại).
+  final ActiveShift? active;
 
   /// Gọi khi bấm vào một ngày có giờ làm.
   final void Function(DateTime day)? onDayTap;
@@ -178,8 +189,25 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
       if (s == AnimationStatus.completed && mounted) setState(() => _prev = null);
     });
 
+  Timer? _timer;
+  int _minute = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+
+  @override
+  void initState() {
+    super.initState();
+    // Chỉ dựng lại khi sang phút mới và đang có ca đang làm.
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final m = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+      if (m != _minute) {
+        _minute = m;
+        if (mounted && widget.active != null) setState(() {});
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _timer?.cancel();
     _anim.dispose();
     super.dispose();
   }
@@ -238,6 +266,23 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
       reg[i] += r.regularHours;
       ot[i] += r.otHours;
       dbl[i] += r.doubleHours;
+    }
+
+    // Ca đang làm (chưa "Ra ca") được tính đến phút hiện tại vào cột của ngày bắt đầu ca.
+    final a = widget.active;
+    final liveEnd = floorMinute(now);
+    if (a != null && !a.start.isBefore(monday) && a.start.isBefore(next) && liveEnd.isAfter(a.start)) {
+      const probeId = -1;
+      final live = PayCalculator.calculate([
+        for (final r in widget.records)
+          if (!r.start.isBefore(monday) && r.start.isBefore(next)) r,
+        WorkRecord(id: probeId, start: a.start, end: liveEnd, dayType: 'Thường', hourlyRate: a.rate),
+      ], holidays)
+          .firstWhere((r) => r.id == probeId);
+      final i = a.start.weekday - 1;
+      reg[i] += live.regularHours;
+      ot[i] += live.otHours;
+      dbl[i] += live.doubleHours;
     }
     final maxH = math.max(
       10.0,
