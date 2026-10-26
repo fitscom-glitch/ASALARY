@@ -22,6 +22,7 @@ import 'package:theo_doi_luong/presentation/screens/history/widgets/day_summary_
 import 'package:theo_doi_luong/presentation/screens/history/widgets/record_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/compare_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/history_preview_card.dart';
+import 'package:theo_doi_luong/presentation/screens/home/widgets/live_today_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/profile_header.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/shift_card.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/stat_tile.dart';
@@ -79,7 +80,6 @@ class HomePage extends StatelessWidget {
         final now = DateTime.now();
         final monday = startOfWeek(now, DateTime.monday);
         final week = summarize(records, monday, DateTime(monday.year, monday.month, monday.day + 7));
-        final today = summarize(records, dateOnly(now), DateTime(now.year, now.month, now.day + 1));
         final month = summarize(records, DateTime(now.year, now.month), DateTime(now.year, now.month + 1));
         final year = summarize(records, DateTime(now.year), DateTime(now.year + 1));
 
@@ -154,18 +154,18 @@ class HomePage extends StatelessWidget {
                         WeekOverview(
                           records: records,
                           holidays: holidays,
+                          active: c.active,
                           onDayTap: (day) => _openDay(context, day),
                         ),
                         Row(
                           spacing: 10,
                           children: [
                             Expanded(
-                              child: StatTile(
-                                icon: Icons.today_rounded,
-                                label: 'Hôm nay',
-                                value: money(today.earned),
-                                hours: fmtHours(today.total),
-                                color: AppColors.tealMid,
+                              child: LiveTodayTile(
+                                records: records,
+                                active: c.active,
+                                holidays: holidays,
+                                onTap: () => _openDay(context, dateOnly(DateTime.now())),
                               ),
                             ),
                             Expanded(
@@ -175,6 +175,7 @@ class HomePage extends StatelessWidget {
                                 value: money(month.earned),
                                 hours: fmtHours(month.total),
                                 color: Colors.indigo,
+                                onTap: () => _openHistory(context, HistoryPreset.month),
                               ),
                             ),
                             Expanded(
@@ -184,6 +185,7 @@ class HomePage extends StatelessWidget {
                                 value: money(year.earned),
                                 hours: fmtHours(year.total),
                                 color: Colors.deepOrange,
+                                onTap: () => _openHistory(context, HistoryPreset.year),
                               ),
                             ),
                           ],
@@ -243,9 +245,16 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 if (rs.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Không có ca làm nào trong khoảng này.')),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        c.active != null && dateOnly(c.active!.start) == day
+                            ? 'Đang trong ca. Ca sẽ được lưu khi bạn bấm "Ra ca".'
+                            : 'Không có ca làm nào trong khoảng này.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   )
                 else ...[
                   for (final r in rs)
@@ -357,10 +366,12 @@ class HomePage extends StatelessWidget {
     if (ok) await avatar.remove();
   }
 
-  Future<void> _openHistory(BuildContext context) => Navigator.of(context).push<void>(
+  Future<void> _openHistory(BuildContext context, [HistoryPreset preset = HistoryPreset.all]) =>
+      Navigator.of(context).push<void>(
         MaterialPageRoute(
           builder: (_) => HistoryPage(
             c: c,
+            initialPreset: preset,
             onEdit: (ctx, r) => _editRecord(ctx, r),
             onDelete: (ctx, r) => _deleteRecord(ctx, r),
           ),
