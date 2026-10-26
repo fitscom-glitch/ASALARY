@@ -46,16 +46,25 @@ class _GroupHeader {
 enum HistoryPreset { all, week, month, lastMonth, year, custom }
 
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key, required this.c, required this.onEdit, required this.onDelete});
+  const HistoryPage({
+    super.key,
+    required this.c,
+    required this.onEdit,
+    required this.onDelete,
+    this.initialPreset = HistoryPreset.all,
+  });
   final AppController c;
   final RecordAction onEdit, onDelete;
+
+  /// Bộ lọc ban đầu (vd. mở từ ô "Tháng này" hoặc "Năm nay" ở màn hình chính).
+  final HistoryPreset initialPreset;
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  HistoryPreset _preset = HistoryPreset.all;
+  late HistoryPreset _preset = widget.initialPreset;
   DateTimeRange? _custom;
 
   /// Khóa của các tháng / tuần đang mở rộng (mặc định thu gọn hết).
