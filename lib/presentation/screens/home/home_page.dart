@@ -13,6 +13,7 @@ import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/logic/controllers/app_lock.dart';
 import 'package:theo_doi_luong/logic/controllers/avatar_controller.dart';
 import 'package:theo_doi_luong/logic/pay_calculator.dart';
+import 'package:theo_doi_luong/logic/period_stats.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
 import 'package:theo_doi_luong/presentation/screens/avatar/avatar_sheet.dart';
 import 'package:theo_doi_luong/presentation/screens/compare/compare_page.dart';
@@ -28,6 +29,7 @@ import 'package:theo_doi_luong/presentation/screens/home/widgets/shift_card.dart
 import 'package:theo_doi_luong/presentation/screens/home/widgets/stat_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/week_overview.dart';
 import 'package:theo_doi_luong/presentation/screens/settings/settings_page.dart';
+import 'package:theo_doi_luong/presentation/screens/stats/period_stats_page.dart';
 import 'package:theo_doi_luong/presentation/screens/shift/record_editor.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 import 'package:theo_doi_luong/presentation/widgets/confirm_dialog.dart';
@@ -175,7 +177,7 @@ class HomePage extends StatelessWidget {
                                 value: money(month.earned),
                                 hours: fmtHours(month.total),
                                 color: Colors.indigo,
-                                onTap: () => _openHistory(context, HistoryPreset.month),
+                                onTap: () => _openStats(context, StatsKind.month),
                               ),
                             ),
                             Expanded(
@@ -185,7 +187,7 @@ class HomePage extends StatelessWidget {
                                 value: money(year.earned),
                                 hours: fmtHours(year.total),
                                 color: Colors.deepOrange,
-                                onTap: () => _openHistory(context, HistoryPreset.year),
+                                onTap: () => _openStats(context, StatsKind.year),
                               ),
                             ),
                           ],
@@ -380,6 +382,10 @@ class HomePage extends StatelessWidget {
 
   Future<void> _openCompare(BuildContext context) => Navigator.of(context).push<void>(
         MaterialPageRoute(builder: (_) => ComparePage(c: c)),
+      );
+
+  Future<void> _openStats(BuildContext context, StatsKind kind) => Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => PeriodStatsPage(c: c, kind: kind)),
       );
 
   Future<void> _export(BuildContext context) => ExportFlow.run(context, c, lock);
