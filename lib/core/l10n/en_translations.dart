@@ -277,6 +277,7 @@ final enPatternTranslations = <(RegExp, String Function(RegExpMatch))>[
   (RegExp(r'^(.+)/giờ$'), (RegExpMatch m) => '${m[1]}/hr'),
   (RegExp(r'^Thường (\S+) · OT (\S+) · x2 (\S+)$'), (RegExpMatch m) => 'Regular ${m[1]} · OT ${m[2]} · x2 ${m[3]}'),
   (RegExp(r'^Thường (\d+h\d\d)$'), (RegExpMatch m) => 'Regular ${m[1]}'),
+  (RegExp(r'^Tuần này (.+)$'), (RegExpMatch m) => 'This week ${m[1]}'),
   (RegExp(r'^Tuần (.+)$'), (RegExpMatch m) => 'Week ${m[1]}'),
   (RegExp(r'^Hôm nay: (.+)$'), (RegExpMatch m) => 'Today: ${m[1]}'),
   (RegExp(r'^Hôm nay tính là: (.+)$'), (RegExpMatch m) => 'Today counts as: ${m[1]}'),
