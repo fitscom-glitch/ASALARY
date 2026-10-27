@@ -9,33 +9,48 @@ import 'package:theo_doi_luong/core/utils/formatters.dart';
 import 'package:theo_doi_luong/data/models/period_summary.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/logic/period_stats.dart';
+import 'package:theo_doi_luong/logic/day_type.dart';
 import 'package:theo_doi_luong/logic/period_utils.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
+import 'package:theo_doi_luong/presentation/theme/day_type_style.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 import 'package:theo_doi_luong/presentation/widgets/pill.dart';
 import 'package:theo_doi_luong/presentation/widgets/settings_widgets.dart';
 
 /// Bảng thống kê chi tiết của một tháng hoặc một năm (mở từ ô "Tháng này" / "Năm nay").
 class PeriodStatsPage extends StatefulWidget {
-  const PeriodStatsPage({super.key, required this.c, required this.kind});
+  const PeriodStatsPage({super.key, required this.c, required this.kind, this.initialAnchor});
   final AppController c;
   final StatsKind kind;
+
+  /// Một ngày bất kỳ thuộc kỳ cần xem (mặc định là hôm nay).
+  final DateTime? initialAnchor;
 
   @override
   State<PeriodStatsPage> createState() => _PeriodStatsPageState();
 }
 
 class _PeriodStatsPageState extends State<PeriodStatsPage> {
-  DateTime _anchor = DateTime.now();
+  late DateTime _anchor = widget.initialAnchor ?? DateTime.now();
 
-  bool get _isMonth => widget.kind == StatsKind.month;
-  CompareKind get _ck => _isMonth ? CompareKind.month : CompareKind.year;
+  StatsKind get _kind => widget.kind;
+  CompareKind get _ck => switch (_kind) {
+        StatsKind.week => CompareKind.week,
+        StatsKind.month => CompareKind.month,
+        StatsKind.year => CompareKind.year,
+      };
 
   void _move(int delta) => setState(() => _anchor = shiftPeriod(_ck, _anchor, delta));
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(_isMonth ? 'Thống kê tháng' : 'Thống kê năm')),
+        appBar: AppBar(
+          title: Text(switch (_kind) {
+            StatsKind.week => 'Thống kê tuần',
+            StatsKind.month => 'Thống kê tháng',
+            StatsKind.year => 'Thống kê năm',
+          }),
+        ),
         body: ListenableBuilder(listenable: widget.c, builder: (context, _) => _body(context)),
       );
 
@@ -54,7 +69,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
     final stats = computePeriodStats(records, holidays, from, to, idleEnd: idleEnd);
 
     // Kỳ trước: tiền so với cả kỳ trước; số ngày không có ca so với cùng khoảng thời gian đã qua.
-    final prevIdleEnd = (!_isMonth && isCurrent) ? DateTime(pFrom.year, today.month, today.day) : pTo;
+    final prevIdleEnd = (_kind == StatsKind.year && isCurrent) ? DateTime(pFrom.year, today.month, today.day) : pTo;
     final prev = computePeriodStats(records, holidays, pFrom, pTo, idleEnd: prevIdleEnd);
 
     final s = stats.summary;
@@ -72,7 +87,11 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
         _HeaderCard(
           summary: s,
           prev: prev.summary,
-          compareLabel: _isMonth ? 'So với tháng trước' : 'So với năm trước',
+          compareLabel: switch (_kind) {
+            StatsKind.week => 'So với tuần trước',
+            StatsKind.month => 'So với tháng trước',
+            StatsKind.year => 'So với năm trước',
+          },
           prevTitle: periodTitle(_ck, shiftPeriod(_ck, _anchor, -1)),
         ),
         if (s.shifts == 0)
@@ -80,7 +99,11 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
             padding: EdgeInsets.fromLTRB(8, 10, 8, 0),
             child: Text('Chưa có ca làm nào trong kỳ này.', style: TextStyle(color: AppColors.muted)),
           ),
-        if (_isMonth) ..._monthSections(from, to, today, stats) else ..._yearSections(from, to, today, isCurrent, isFuture, stats, prev),
+        ...switch (_kind) {
+          StatsKind.week => _weekSections(from, today, isCurrent, stats),
+          StatsKind.month => _monthSections(from, to, today, stats),
+          StatsKind.year => _yearSections(from, to, today, isCurrent, isFuture, stats, prev),
+        },
       ],
     );
   }
@@ -94,7 +117,6 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
     PeriodStats stats,
   ) {
     final weeks = weeksOfMonth(widget.c.records, from, to);
-    final s = stats.summary;
     return [
       const SettingsSectionLabel('Theo tuần'),
       _Panel(
@@ -111,19 +133,54 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
       const SettingsSectionLabel('Số ngày'),
       _daysPanel(stats, today.isBefore(to) && !today.isBefore(from)),
       const SettingsSectionLabel('Giờ làm và tiền'),
+      _hoursPanel(stats),
+    ];
+  }
+
+  // ── Tuần ─────────────────────────────────────────────────────────────────
+
+  List<Widget> _weekSections(DateTime monday, DateTime today, bool isCurrent, PeriodStats stats) {
+    final recs = widget.c.records;
+    final holidays = widget.c.settings.holidays;
+    return [
+      const SettingsSectionLabel('Theo ngày'),
       _Panel(
         children: [
-          const _HoursHeader(),
-          _HoursRow('Giờ thường', s.regular, s.regularPay, Colors.teal),
-          _HoursRow('Giờ OT (x1.5)', s.ot, s.otPay, Colors.indigo),
-          if (stats.otherDoubleHours > 0.0001)
-            _HoursRow('Giờ x2 (trên 12 giờ)', stats.otherDoubleHours, stats.otherDoublePay, Colors.deepOrange.shade300),
-          _HoursRow('Giờ ngày lễ (x2)', stats.holidayHours, stats.holidayPay, Colors.deepOrange),
-          const Divider(height: 20),
-          _HoursRow('Tổng cộng', s.total, s.earned, AppColors.tealDark, strong: true),
+          for (var i = 0; i < 7; i++)
+            _DayRow(
+              weekday: weekdayShort[i],
+              date: DateTime(monday.year, monday.month, monday.day + i),
+              type: dayTypeOf(DateTime(monday.year, monday.month, monday.day + i), holidays),
+              summary: summarize(
+                recs,
+                DateTime(monday.year, monday.month, monday.day + i),
+                DateTime(monday.year, monday.month, monday.day + i + 1),
+              ),
+              current: DateTime(monday.year, monday.month, monday.day + i) == today,
+            ),
         ],
       ),
+      const SettingsSectionLabel('Số ngày'),
+      _daysPanel(stats, isCurrent),
+      const SettingsSectionLabel('Giờ làm và tiền'),
+      _hoursPanel(stats),
     ];
+  }
+
+  Widget _hoursPanel(PeriodStats stats) {
+    final s = stats.summary;
+    return _Panel(
+      children: [
+        const _HoursHeader(),
+        _HoursRow('Giờ thường', s.regular, s.regularPay, Colors.teal),
+        _HoursRow('Giờ OT (x1.5)', s.ot, s.otPay, Colors.indigo),
+        if (stats.otherDoubleHours > 0.0001)
+          _HoursRow('Giờ x2 (trên 12 giờ)', stats.otherDoubleHours, stats.otherDoublePay, Colors.deepOrange.shade300),
+        _HoursRow('Giờ ngày lễ (x2)', stats.holidayHours, stats.holidayPay, Colors.deepOrange),
+        const Divider(height: 20),
+        _HoursRow('Tổng cộng', s.total, s.earned, AppColors.tealDark, strong: true),
+      ],
+    );
   }
 
   // ── Năm ──────────────────────────────────────────────────────────────────
@@ -388,6 +445,67 @@ class _WeekRow extends StatelessWidget {
             ),
           ),
           Text(money(week.summary.earned), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Một ngày trong tuần: thứ, ngày, loại ngày, số ca, giờ và tiền.
+class _DayRow extends StatelessWidget {
+  const _DayRow({
+    required this.weekday,
+    required this.date,
+    required this.type,
+    required this.summary,
+    required this.current,
+  });
+  final String weekday, type;
+  final DateTime date;
+  final PeriodSummary summary;
+  final bool current;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = summary.shifts > 0;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: current ? AppColors.tealMid.withValues(alpha: 0.08) : null,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 34,
+            child: Text(
+              weekday,
+              style: TextStyle(fontWeight: FontWeight.w800, color: has ? typeColor(type) : AppColors.muted),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  spacing: 6,
+                  children: [
+                    Text('${pad2(date.day)}/${pad2(date.month)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (type != 'Thường') Pill(dayLabel(type), color: typeColor(type)),
+                  ],
+                ),
+                Text(
+                  has ? '${fmtHours(summary.total)} · ${summary.shifts} ca' : 'Không có ca',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            money(summary.earned),
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: has ? null : AppColors.muted),
+          ),
         ],
       ),
     );
