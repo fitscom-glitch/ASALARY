@@ -4,7 +4,7 @@ import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/logic/day_type.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
 
-enum StatsKind { month, year }
+enum StatsKind { week, month, year }
 
 /// Thống kê chi tiết của một khoảng thời gian [from, to).
 class PeriodStats {
