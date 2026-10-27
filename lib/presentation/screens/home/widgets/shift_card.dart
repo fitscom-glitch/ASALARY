@@ -6,17 +6,23 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:theo_doi_luong/core/constants/app_colors.dart';
 import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/data/preferences/active_shift.dart';
+import 'package:theo_doi_luong/logic/pay_tier.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 
 class _GlassPill extends StatelessWidget {
-  const _GlassPill(this.text);
+  const _GlassPill(this.text, {this.tint});
   final String text;
 
+  /// Màu nền riêng (OT, x2). Null: kính trắng mờ mặc định.
+  final Color? tint;
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
+  Widget build(BuildContext context) => AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
+          color: tint ?? Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Padding(
@@ -31,6 +37,8 @@ class ShiftCard extends StatelessWidget {
     super.key,
     required this.active,
     required this.todayType,
+    required this.records,
+    required this.holidays,
     required this.weekEarned,
     required this.weekHours,
     required this.weekShifts,
@@ -41,6 +49,10 @@ class ShiftCard extends StatelessWidget {
   });
   final ActiveShift? active;
   final String todayType;
+
+  /// Dùng để xác định loại giờ hiện tại (Thường / OT x1.5 / x2) của ca đang làm.
+  final List<WorkRecord> records;
+  final Set<String> holidays;
   final double weekEarned, weekHours;
   final int weekShifts;
   final double Function() estimate;
@@ -131,7 +143,14 @@ class ShiftCard extends StatelessWidget {
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 1),
                       ),
                     ),
-                    _GlassPill(dayLabel(a.dayType)),
+                    // Nhãn đổi theo loại giờ đang được tính: Thường -> OT x1.5 -> x2 (giống vòng tròn ngày hôm nay ở biểu đồ tuần).
+                    _Tick(
+                      builder: (_) => switch (currentPayTier(records, holidays, a)) {
+                        PayTier.double => _GlassPill('x2', tint: Colors.deepOrange.shade400),
+                        PayTier.ot => _GlassPill('OT x1.5', tint: Colors.indigo.shade400),
+                        PayTier.regular => const _GlassPill('Thường'),
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
