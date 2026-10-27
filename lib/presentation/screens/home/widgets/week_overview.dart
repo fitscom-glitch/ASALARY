@@ -160,7 +160,14 @@ class _DayBar extends StatelessWidget {
 /// Thống kê tuần: vuốt sang phải để xem tuần trước đó (lần lượt lùi về quá khứ),
 /// vuốt sang trái để quay lại các tuần sau, cho đến tuần hiện tại.
 class WeekOverview extends StatefulWidget {
-  const WeekOverview({super.key, required this.records, required this.holidays, this.active, this.onDayTap});
+  const WeekOverview({
+    super.key,
+    required this.records,
+    required this.holidays,
+    this.active,
+    this.onDayTap,
+    this.onWeekTap,
+  });
   final List<WorkRecord> records;
   final Set<String> holidays;
 
@@ -169,6 +176,9 @@ class WeekOverview extends StatefulWidget {
 
   /// Gọi khi bấm vào một ngày có giờ làm.
   final void Function(DateTime day)? onDayTap;
+
+  /// Gọi khi bấm vào tiêu đề tuần (nhận ngày thứ 2 của tuần đang xem).
+  final void Function(DateTime monday)? onWeekTap;
 
   @override
   State<WeekOverview> createState() => _WeekOverviewState();
@@ -336,15 +346,19 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
           children: [
             // Tên tuần và khoảng ngày xếp dọc để tên tuần có đủ chỗ hiển thị đầy đủ (không bị cắt chữ).
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_title(offset), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                  Text(
-                    '${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.muted),
-                  ),
-                ],
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: widget.onWeekTap == null ? null : () => widget.onWeekTap!(monday),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_title(offset), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    Text(
+                      '${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
+                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
+                  ],
+                ),
               ),
             ),
             _ArrowButton(
@@ -419,7 +433,16 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
           ),
         ),
         const SizedBox(height: 8),
-        Text(note, style: const TextStyle(fontSize: 12, color: AppColors.muted, height: 1.35)),
+        // Chiều cao cố định đủ cho 2 dòng để thẻ không đổi chiều cao khi ghi chú dài 1 hay 2 dòng.
+        SizedBox(
+          height: MediaQuery.textScalerOf(context).scale(12) * 1.35 * 2 + 1,
+          child: Text(
+            note,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted, height: 1.35),
+          ),
+        ),
       ],
     );
   }
