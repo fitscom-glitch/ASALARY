@@ -143,6 +143,8 @@ class HomePage extends StatelessWidget {
                         ShiftCard(
                           active: c.active,
                           todayType: c.dayTypeFor(now),
+                          records: records,
+                          holidays: holidays,
                           weekEarned: week.earned,
                           weekHours: week.total,
                           weekShifts: week.shifts,
