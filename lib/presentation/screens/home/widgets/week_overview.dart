@@ -11,6 +11,7 @@ import 'package:theo_doi_luong/core/utils/formatters.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/data/preferences/active_shift.dart';
 import 'package:theo_doi_luong/logic/pay_calculator.dart';
+import 'package:theo_doi_luong/logic/pay_tier.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 
 String _shortH(double h) {
@@ -233,37 +234,13 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
     super.dispose();
   }
 
-  /// Màu vòng tròn ngày hôm nay = loại giờ mà phút làm việc tiếp theo của hôm nay sẽ được tính.
-  /// Dùng chính PayCalculator nên khớp với cách tính lương (kể cả ca đang làm):
-  ///  - ngày lễ: x2 (màu lễ);
-  ///  - ngày thường: giờ thường cho đến khi đủ 8 giờ trong ngày (hoặc đủ 40 giờ/tuần), sau đó OT;
-  ///  - thứ 7, CN: giờ thường nếu đang bù cho đủ 40 giờ, đến khi đủ 40 giờ (hoặc quá 8 giờ) thì OT.
-  Color _todayColor() {
-    final now = DateTime.now();
-    final end = floorMinute(now);
-    final monday = _mondayOf(0);
-    final next = DateTime(monday.year, monday.month, monday.day + 7);
-    final raw = <WorkRecord>[
-      for (final r in widget.records)
-        if (!r.start.isBefore(monday) && r.start.isBefore(next)) r,
-    ];
-    final a = widget.active;
-    if (a != null && !a.start.isBefore(monday) && end.isAfter(a.start)) {
-      raw.add(WorkRecord(id: -2, start: a.start, end: end, dayType: 'Thường', hourlyRate: a.rate));
-    }
-    const probeId = -1;
-    raw.add(WorkRecord(
-      id: probeId,
-      start: end,
-      end: end.add(const Duration(minutes: 1)),
-      dayType: 'Thường',
-      hourlyRate: 1,
-    ));
-    final probe = PayCalculator.calculate(raw, widget.holidays).firstWhere((r) => r.id == probeId);
-    if (probe.doubleHours > 0) return Colors.deepOrange;
-    if (probe.otHours > 0) return Colors.indigo;
-    return AppColors.tealMid;
-  }
+  /// Màu vòng tròn ngày hôm nay = loại giờ mà phút làm việc tiếp theo của hôm nay sẽ được tính
+  /// (logic dùng chung với nhãn loại giờ ở thẻ ca đang làm).
+  Color _todayColor() => switch (currentPayTier(widget.records, widget.holidays, widget.active)) {
+        PayTier.double => Colors.deepOrange,
+        PayTier.ot => Colors.indigo,
+        PayTier.regular => AppColors.tealMid,
+      };
 
   DateTime _mondayOf(int offset) {
     final m = startOfWeek(DateTime.now(), DateTime.monday);
