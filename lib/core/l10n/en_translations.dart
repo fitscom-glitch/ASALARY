@@ -287,6 +287,14 @@ const enExactTranslations = <String, String>{
   'Bình quân mỗi tuần': 'Average per week',
   'Tổng tiền lương': 'Total pay',
   'Chưa có ca làm nào trong kỳ này.': 'No shifts in this period yet.',
+  // — Thống kê tuần, xác nhận ra ca —
+  'Thống kê tuần': 'Weekly statistics',
+  'So với tuần trước': 'Compared with last week',
+  'Theo ngày': 'By day',
+  'Không có ca': 'No shift',
+  'Kết thúc ca làm?': 'End this shift?',
+  'Ca làm sẽ được lưu với giờ ra là thời điểm hiện tại.':
+      'The shift will be saved with the current time as the end time.',
 };
 
 final enPatternTranslations = <(RegExp, String Function(RegExpMatch))>[
