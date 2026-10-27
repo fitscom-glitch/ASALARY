@@ -154,6 +154,7 @@ class HomePage extends StatelessWidget {
                           onStart: () => _startShift(context),
                           onEnd: () => _endShift(context),
                           onDiscard: () => _discardShift(context),
+                          onEditStart: () => _editActiveStart(context),
                         ),
                         WeekOverview(
                           records: records,
@@ -300,6 +301,26 @@ class HomePage extends StatelessWidget {
               ? 'Đã lưu. Ca dài bất thường, hãy kiểm tra lại giờ ra (chạm vào ca để sửa).'
               : 'Đã lưu ca làm.'),
     );
+  }
+
+  /// Sửa giờ vào của ca đang làm. Chọn giờ:phút; nếu giờ đó còn ở tương lai so với hiện tại
+  /// thì hiểu là của hôm qua (ca qua nửa đêm).
+  Future<void> _editActiveStart(BuildContext context) async {
+    final current = c.active?.start;
+    if (current == null) return;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+      helpText: 'Giờ vào ca',
+    );
+    if (t == null || !context.mounted) return;
+    final now = DateTime.now();
+    var start = DateTime(current.year, current.month, current.day, t.hour, t.minute);
+    // Giữ nguyên ngày của ca; nếu rơi vào tương lai thì lùi 1 ngày.
+    if (start.isAfter(now)) start = start.subtract(const Duration(days: 1));
+    final err = await c.updateActiveStart(start);
+    if (!context.mounted) return;
+    showToast(context, err ?? 'Đã cập nhật giờ vào ca.');
   }
 
   Future<void> _discardShift(BuildContext context) async {
