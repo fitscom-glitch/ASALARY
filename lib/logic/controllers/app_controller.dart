@@ -127,6 +127,24 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sửa giờ vào của ca đang làm (khi bấm "Vào ca" trễ vì quên). Giữ nguyên mức lương, tính lại loại ngày.
+  Future<String?> updateActiveStart(DateTime newStart) async {
+    final shift = active;
+    if (shift == null) return null;
+    final start = floorMinute(newStart);
+    final now = DateTime.now();
+    if (start.isAfter(now)) return 'Giờ vào không được ở tương lai.';
+    if (now.difference(start) > const Duration(hours: 24)) return 'Một ca tối đa 24 giờ.';
+    if (records.any((r) => r.start.isBefore(now) && r.end.isAfter(start))) {
+      return 'Giờ vào trùng với một ca đã có.';
+    }
+    final updated = ActiveShift(start: start, dayType: dayTypeFor(start), rate: shift.rate);
+    await updated.save();
+    active = updated;
+    notifyListeners();
+    return null;
+  }
+
   Future<String?> checkOut() async {
     final shift = active;
     if (shift == null) return null;
