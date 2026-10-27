@@ -46,6 +46,7 @@ class ShiftCard extends StatelessWidget {
     required this.onStart,
     required this.onEnd,
     required this.onDiscard,
+    this.onEditStart,
   });
   final ActiveShift? active;
   final String todayType;
@@ -57,6 +58,9 @@ class ShiftCard extends StatelessWidget {
   final int weekShifts;
   final double Function() estimate;
   final VoidCallback onStart, onEnd, onDiscard;
+
+  /// Chạm vào dòng "Vào lúc ..." để sửa giờ vào ca (khi quên bấm vào ca đúng giờ).
+  final VoidCallback? onEditStart;
 
   @override
   Widget build(BuildContext context) {
@@ -165,9 +169,27 @@ class ShiftCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Vào lúc ${fmtStart(a.start)} · ${money(a.rate)}/giờ',
-                  style: TextStyle(color: soft, fontSize: 13),
+                InkWell(
+                  onTap: onEditStart,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Vào lúc ${fmtStart(a.start)} · ${money(a.rate)}/giờ',
+                            style: TextStyle(color: soft, fontSize: 13),
+                          ),
+                        ),
+                        if (onEditStart != null) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.edit_rounded, size: 14, color: soft),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 18),
                 Row(
