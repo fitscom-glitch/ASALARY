@@ -158,6 +158,7 @@ class HomePage extends StatelessWidget {
                           holidays: holidays,
                           active: c.active,
                           onDayTap: (day) => _openDay(context, day),
+                          onWeekTap: (monday) => _openStats(context, StatsKind.week, monday),
                         ),
                         Row(
                           spacing: 10,
@@ -280,6 +281,13 @@ class HomePage extends StatelessWidget {
   Future<void> _endShift(BuildContext context) async {
     final start = c.active?.start;
     if (start == null) return;
+    final ok = await confirmDialog(
+      context,
+      title: 'Kết thúc ca làm?',
+      message: 'Ca làm sẽ được lưu với giờ ra là thời điểm hiện tại.',
+      action: 'Ra ca',
+    );
+    if (!ok || !context.mounted) return;
     final longShift = DateTime.now().difference(start).inHours >= 16;
     final err = await c.checkOut();
     if (!context.mounted) return;
@@ -384,8 +392,8 @@ class HomePage extends StatelessWidget {
         MaterialPageRoute(builder: (_) => ComparePage(c: c)),
       );
 
-  Future<void> _openStats(BuildContext context, StatsKind kind) => Navigator.of(context).push<void>(
-        MaterialPageRoute(builder: (_) => PeriodStatsPage(c: c, kind: kind)),
+  Future<void> _openStats(BuildContext context, StatsKind kind, [DateTime? anchor]) => Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => PeriodStatsPage(c: c, kind: kind, initialAnchor: anchor)),
       );
 
   Future<void> _export(BuildContext context) => ExportFlow.run(context, c, lock);
