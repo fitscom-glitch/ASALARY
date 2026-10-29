@@ -168,8 +168,9 @@ class _ComparePageState extends State<ComparePage> {
           final rs = widget.c.records;
           final ba = periodBounds(_kind, _a);
           final bb = periodBounds(_kind, _b);
-          final sa = summarize(rs, ba.$1, ba.$2);
-          final sb = summarize(rs, bb.$1, bb.$2);
+          final leave = widget.c.settings.paidLeave;
+          final sa = summarize(rs, ba.$1, ba.$2, leave: leave);
+          final sb = summarize(rs, bb.$1, bb.$2, leave: leave);
           const colorA = AppColors.tealMid;
           const colorB = Colors.indigo;
           final same = ba.$1 == bb.$1;
