@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:theo_doi_luong/core/constants/app_constants.dart';
 import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/reminder_config.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 
@@ -16,6 +17,7 @@ class BackupData {
     required this.lang,
     required this.exportedAt,
     this.reminders = const ReminderConfig(),
+    this.paidLeave = const {},
     this.companyName = '',
     this.userName = '',
     this.userId = '',
@@ -26,6 +28,7 @@ class BackupData {
   final String lang;
   final DateTime exportedAt;
   final ReminderConfig reminders;
+  final Map<String, PaidLeave> paidLeave;
   final String companyName, userName, userId;
 
   static const _appId = 'theo_doi_luong';
@@ -40,6 +43,7 @@ class BackupData {
           'holidays': holidays.toList()..sort(),
           'lang': lang,
           'reminders': reminders.toJson(),
+          'paidLeave': PaidLeave.mapToJson(paidLeave),
           'profile': {'company': companyName, 'name': userName, 'id': userId},
         },
         'records': [
@@ -117,6 +121,7 @@ class BackupData {
         holidays: holidays,
         lang: lang,
         reminders: ReminderConfig.fromJson(settings['reminders']),
+        paidLeave: PaidLeave.mapFromJson(settings['paidLeave']),
         companyName: profileText('company'),
         userName: profileText('name'),
         userId: profileText('id'),
