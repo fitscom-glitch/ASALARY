@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart' show ChangeNotifier, setEquals;
 
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
+import 'package:theo_doi_luong/core/utils/formatters.dart' show dateFmt;
 import 'package:theo_doi_luong/data/database/app_database.dart';
 import 'package:theo_doi_luong/data/models/backup_data.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/record_draft.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/data/preferences/active_shift.dart';
@@ -117,6 +119,17 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Thêm hoặc sửa ngày nghỉ có lương (ghi đè nếu ngày đó đã có).
+  Future<void> setPaidLeave(DateTime day, double hours, double rate) => updateSettings(
+        settings.copyWith(paidLeave: {
+          ...settings.paidLeave,
+          dateFmt.format(day): PaidLeave(hours: hours, rate: rate),
+        }),
+      );
+
+  Future<void> removePaidLeave(String key) =>
+      updateSettings(settings.copyWith(paidLeave: {...settings.paidLeave}..remove(key)));
+
   String dayTypeFor(DateTime d) => dayTypeOf(d, settings.holidays);
 
   Future<void> checkIn(double rate) async {
@@ -179,6 +192,7 @@ class AppController extends ChangeNotifier {
         records: records.reversed.toList(),
         hourlyRate: settings.hourlyRate,
         holidays: Set<String>.of(settings.holidays),
+        paidLeave: Map.of(settings.paidLeave),
         lang: settings.lang,
         reminders: settings.reminders,
         companyName: settings.companyName,
@@ -198,13 +212,17 @@ class AppController extends ChangeNotifier {
         ? settings.copyWith(
             hourlyRate: d.hourlyRate,
             holidays: Set<String>.of(d.holidays),
+            paidLeave: Map.of(d.paidLeave),
             lang: d.lang,
             reminders: d.reminders,
             companyName: d.companyName,
             userName: d.userName,
             userId: d.userId,
           )
-        : settings.copyWith(holidays: {...settings.holidays, ...d.holidays});
+        : settings.copyWith(
+            holidays: {...settings.holidays, ...d.holidays},
+            paidLeave: {...settings.paidLeave, ...d.paidLeave},
+          );
     await settings.save();
     await _recalculate(await _db.getAll());
     return (added: plan.add.length, skipped: plan.skipped);
