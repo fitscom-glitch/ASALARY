@@ -6,11 +6,12 @@ import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
 import 'package:theo_doi_luong/core/utils/number_parser.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
+import 'package:theo_doi_luong/presentation/screens/settings/paid_leave_dialog.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
 import 'package:theo_doi_luong/presentation/widgets/settings_widgets.dart';
 import 'package:theo_doi_luong/presentation/widgets/toast.dart';
 
-/// Trang "Lương & ngày lễ": lương mặc định theo giờ và danh sách ngày lễ (tính x2).
+/// Trang "Lương & ngày lễ": lương mặc định theo giờ, danh sách ngày lễ (tính x2) và ngày nghỉ có lương.
 class PaySettingsPage extends StatefulWidget {
   const PaySettingsPage({super.key, required this.c});
   final AppController c;
@@ -71,6 +72,8 @@ class _PaySettingsPageState extends State<PaySettingsPage> {
           listenable: widget.c,
           builder: (context, _) {
             final holidays = widget.c.settings.holidays.toList()..sort();
+            final leave = widget.c.settings.paidLeave;
+            final leaveKeys = leave.keys.toList()..sort();
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
@@ -124,6 +127,43 @@ class _PaySettingsPageState extends State<PaySettingsPage> {
                           onPressed: _addHoliday,
                           icon: const Icon(Icons.event_available),
                           label: const Text('Thêm ngày lễ'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SettingsSectionLabel('Ngày nghỉ có lương (Sick leave)'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: 12,
+                      children: [
+                        if (leaveKeys.isEmpty)
+                          const Text('Chưa có ngày nghỉ có lương nào.', style: TextStyle(color: AppColors.muted))
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              for (final k in leaveKeys)
+                                InputChip(
+                                  label: Text('${_label(k)} · ${fmtHours(leave[k]!.hours)}'),
+                                  onPressed: () => showPaidLeaveDialog(context, widget.c, day: DateTime.tryParse(k)),
+                                  onDeleted: () => widget.c.removePaidLeave(k),
+                                ),
+                            ],
+                          ),
+                        OutlinedButton.icon(
+                          onPressed: () => showPaidLeaveDialog(context, widget.c),
+                          icon: const Icon(Icons.healing_rounded),
+                          label: const Text('Thêm ngày nghỉ có lương'),
+                        ),
+                        const Text(
+                          'Ngày nghỉ có lương được tính theo lương giờ hiện tại và cộng vào thu nhập, '
+                          'nhưng không tính vào 40 giờ thường của tuần.',
+                          style: TextStyle(fontSize: 12, color: AppColors.muted),
                         ),
                       ],
                     ),
