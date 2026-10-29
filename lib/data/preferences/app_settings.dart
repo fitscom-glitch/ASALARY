@@ -4,12 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart' show SharedPreferenc
 
 import 'package:theo_doi_luong/core/constants/app_constants.dart';
 import 'package:theo_doi_luong/core/l10n/app_language.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/reminder_config.dart';
 
 class AppSettings {
   const AppSettings({
     this.hourlyRate = kDefaultRate,
     this.holidays = const {},
+    this.paidLeave = const {},
     this.lang = 'vi',
     this.reminders = const ReminderConfig(),
     this.companyName = '',
@@ -18,6 +20,9 @@ class AppSettings {
   });
   final double hourlyRate;
   final Set<String> holidays; // 'yyyy-MM-dd'
+
+  /// Ngày nghỉ có lương (Sick leave): 'yyyy-MM-dd' -> số giờ và mức lương.
+  final Map<String, PaidLeave> paidLeave;
   final String lang; // 'vi' hoặc 'en'
   final ReminderConfig reminders;
 
@@ -32,6 +37,7 @@ class AppSettings {
   AppSettings copyWith({
     double? hourlyRate,
     Set<String>? holidays,
+    Map<String, PaidLeave>? paidLeave,
     String? lang,
     ReminderConfig? reminders,
     String? companyName,
@@ -41,6 +47,7 @@ class AppSettings {
       AppSettings(
         hourlyRate: hourlyRate ?? this.hourlyRate,
         holidays: holidays ?? this.holidays,
+        paidLeave: paidLeave ?? this.paidLeave,
         lang: lang ?? this.lang,
         reminders: reminders ?? this.reminders,
         companyName: companyName ?? this.companyName,
@@ -55,12 +62,23 @@ class AppSettings {
     return AppSettings(
       hourlyRate: prefs.getDouble('hourlyRate') ?? kDefaultRate,
       holidays: (prefs.getStringList('holidays') ?? const <String>[]).toSet(),
+      paidLeave: _loadPaidLeave(prefs),
       lang: supportedLangs.containsKey(prefs.getString('lang')) ? prefs.getString('lang')! : 'vi',
       reminders: _loadReminders(prefs),
       companyName: prefs.getString('profile_company') ?? '',
       userName: prefs.getString('profile_name') ?? '',
       userId: prefs.getString('profile_id') ?? '',
     );
+  }
+
+  static Map<String, PaidLeave> _loadPaidLeave(SharedPreferences prefs) {
+    final raw = prefs.getString('paidLeave');
+    if (raw == null) return const {};
+    try {
+      return PaidLeave.mapFromJson(jsonDecode(raw));
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Đọc nhắc nhở; nếu chưa có định dạng mới thì chuyển từ khóa cũ (giờ vào ca / ra ca).
@@ -84,6 +102,7 @@ class AppSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('hourlyRate', hourlyRate);
     await prefs.setStringList('holidays', holidays.toList()..sort());
+    await prefs.setString('paidLeave', jsonEncode(PaidLeave.mapToJson(paidLeave)));
     await prefs.setString('lang', lang);
     await prefs.setString(_remindersKey, jsonEncode(reminders.toJson()));
     for (final k in const ['rem_start', 'rem_end', 'rem_days']) {
