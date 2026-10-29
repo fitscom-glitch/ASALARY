@@ -308,9 +308,12 @@ const enExactTranslations = <String, String>{
   'Kết thúc ca làm?': 'End this shift?',
   'Ca làm sẽ được lưu với giờ ra là thời điểm hiện tại.':
       'The shift will be saved with the current time as the end time.',
+  'Giờ nghỉ có lương': 'Paid leave hours',
+  'Nghỉ có lương': 'Paid leave',
 };
 
 final enPatternTranslations = <(RegExp, String Function(RegExpMatch))>[
+  (RegExp(r'^Gồm nghỉ có lương: (.+)$'), (RegExpMatch m) => 'Includes paid leave: ${m[1]}'),
   (RegExp(r'^(\d+) tuần$'), (RegExpMatch m) => '${m[1]} ${m[1] == '1' ? 'week' : 'weeks'}'),
   (RegExp(r'^([+-]?\d+) ngày$'), (RegExpMatch m) => '${m[1]} ${m[1]!.replaceFirst('+', '') == '1' ? 'day' : 'days'}'),
   (RegExp(r'^Chia cho (\d+) tuần$'), (RegExpMatch m) => 'Divided by ${m[1]} weeks'),
