@@ -57,6 +57,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
   Widget _body(BuildContext context) {
     final records = widget.c.records;
     final holidays = widget.c.settings.holidays;
+    final leave = widget.c.settings.paidLeave;
     final today = dateOnly(DateTime.now());
 
     final (from, to) = periodBounds(_ck, _anchor);
@@ -66,11 +67,11 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
 
     // Các ngày được xét là "ngày thường không có ca": chỉ những ngày đã qua (không gồm hôm nay).
     final idleEnd = isCurrent ? today : (isFuture ? from : to);
-    final stats = computePeriodStats(records, holidays, from, to, idleEnd: idleEnd);
+    final stats = computePeriodStats(records, holidays, from, to, idleEnd: idleEnd, leave: leave);
 
     // Kỳ trước: tiền so với cả kỳ trước; số ngày không có ca so với cùng khoảng thời gian đã qua.
     final prevIdleEnd = (_kind == StatsKind.year && isCurrent) ? DateTime(pFrom.year, today.month, today.day) : pTo;
-    final prev = computePeriodStats(records, holidays, pFrom, pTo, idleEnd: prevIdleEnd);
+    final prev = computePeriodStats(records, holidays, pFrom, pTo, idleEnd: prevIdleEnd, leave: leave);
 
     final s = stats.summary;
     final canNext = !isCurrent && !isFuture;
@@ -116,7 +117,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
     DateTime today,
     PeriodStats stats,
   ) {
-    final weeks = weeksOfMonth(widget.c.records, from, to);
+    final weeks = weeksOfMonth(widget.c.records, from, to, leave: widget.c.settings.paidLeave);
     return [
       const SettingsSectionLabel('Theo tuần'),
       _Panel(
@@ -142,6 +143,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
   List<Widget> _weekSections(DateTime monday, DateTime today, bool isCurrent, PeriodStats stats) {
     final recs = widget.c.records;
     final holidays = widget.c.settings.holidays;
+    final leave = widget.c.settings.paidLeave;
     return [
       const SettingsSectionLabel('Theo ngày'),
       _Panel(
@@ -155,6 +157,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
                 recs,
                 DateTime(monday.year, monday.month, monday.day + i),
                 DateTime(monday.year, monday.month, monday.day + i + 1),
+                leave: leave,
               ),
               current: DateTime(monday.year, monday.month, monday.day + i) == today,
             ),
@@ -177,6 +180,7 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
         if (stats.otherDoubleHours > 0.0001)
           _HoursRow('Giờ x2 (trên 12 giờ)', stats.otherDoubleHours, stats.otherDoublePay, Colors.deepOrange.shade300),
         _HoursRow('Giờ ngày lễ (x2)', stats.holidayHours, stats.holidayPay, Colors.deepOrange),
+        if (s.leaveDays > 0) _HoursRow('Giờ nghỉ có lương', s.leaveHours, s.leavePay, Colors.lightBlue.shade600),
         const Divider(height: 20),
         _HoursRow('Tổng cộng', s.total, s.earned, AppColors.tealDark, strong: true),
       ],
@@ -195,8 +199,9 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
     PeriodStats prev,
   ) {
     final recs = widget.c.records;
+    final leave = widget.c.settings.paidLeave;
     final months = [
-      for (var m = 1; m <= 12; m++) summarize(recs, DateTime(from.year, m), DateTime(from.year, m + 1)),
+      for (var m = 1; m <= 12; m++) summarize(recs, DateTime(from.year, m), DateTime(from.year, m + 1), leave: leave),
     ];
     final maxMonth = months.fold<double>(0, (a, b) => b.earned > a ? b.earned : a);
 
@@ -240,6 +245,8 @@ class _PeriodStatsPageState extends State<PeriodStatsPage> {
         _Line('Ngày thường', '${st.weekdayDays} ngày', color: Colors.teal),
         _Line('Ngày OT (T7, CN)', '${st.otDays} ngày', color: Colors.indigo),
         _Line('Ngày lễ', '${st.holidayDays} ngày', color: Colors.deepOrange),
+        if (st.summary.leaveDays > 0)
+          _Line('Ngày nghỉ có lương', '${st.summary.leaveDays} ngày', color: Colors.lightBlue.shade600),
         const Divider(height: 20),
         _Line('Tổng số ca làm', '${st.summary.shifts}', strong: true),
         const Divider(height: 20),
@@ -323,6 +330,11 @@ class _HeaderCard extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w700, letterSpacing: -0.5),
           ),
           Text('${fmtHours(summary.total)} · ${summary.shifts} ca', style: const TextStyle(color: Colors.white70)),
+          if (summary.leaveDays > 0)
+            Text(
+              '${tr('Gồm nghỉ có lương')}: ${money(summary.leavePay)}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
           const Divider(height: 28, color: Colors.white24),
           Row(
             children: [
@@ -467,7 +479,9 @@ class _DayRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final has = summary.shifts > 0;
+    final worked = summary.shifts > 0;
+    final onLeave = summary.leaveDays > 0;
+    final has = worked || onLeave;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -481,7 +495,10 @@ class _DayRow extends StatelessWidget {
             width: 34,
             child: Text(
               weekday,
-              style: TextStyle(fontWeight: FontWeight.w800, color: has ? typeColor(type) : AppColors.muted),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: worked ? typeColor(type) : (onLeave ? Colors.lightBlue.shade700 : AppColors.muted),
+              ),
             ),
           ),
           Expanded(
@@ -495,10 +512,16 @@ class _DayRow extends StatelessWidget {
                     if (type != 'Thường') Pill(dayLabel(type), color: typeColor(type)),
                   ],
                 ),
-                Text(
-                  has ? '${fmtHours(summary.total)} · ${summary.shifts} ca' : 'Không có ca',
-                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
-                ),
+                if (worked || !onLeave)
+                  Text(
+                    worked ? '${fmtHours(summary.total)} · ${summary.shifts} ca' : 'Không có ca',
+                    style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                if (onLeave)
+                  Text(
+                    '${tr('Nghỉ có lương')}: ${fmtHours(summary.leaveHours)}',
+                    style: TextStyle(fontSize: 12, color: Colors.lightBlue.shade700, fontWeight: FontWeight.w600),
+                  ),
               ],
             ),
           ),
