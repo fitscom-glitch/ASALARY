@@ -82,6 +82,8 @@ class DaySummaryCard extends StatelessWidget {
                               _Row(label: 'Thường', hours: fmtHours(s.regular), pay: money(s.regularPay), color: AppColors.tealMid, muted: s.regular <= 0),
                               _Row(label: 'OT x1.5', hours: fmtHours(s.ot), pay: money(s.otPay), color: Colors.indigo, muted: s.ot <= 0),
                               _Row(label: 'x2', hours: fmtHours(s.dbl), pay: money(s.dblPay), color: Colors.deepOrange, muted: s.dbl <= 0),
+                              if (s.leaveDays > 0)
+                                _Row(label: 'Nghỉ có lương', hours: fmtHours(s.leaveHours), pay: money(s.leavePay), color: Colors.lightBlue.shade600),
                               const Divider(height: 16),
                               total,
                             ],

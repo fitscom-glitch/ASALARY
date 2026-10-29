@@ -51,6 +51,7 @@ class RangeSummaryCard extends StatelessWidget {
                   _MetricCell('Thường', fmtHours(summary.regular)),
                   _MetricCell('OT x1.5', fmtHours(summary.ot)),
                   _MetricCell('x2', fmtHours(summary.dbl)),
+                  if (summary.leaveDays > 0) _MetricCell('Nghỉ có lương', money(summary.leavePay)),
                 ],
               ),
             ],
