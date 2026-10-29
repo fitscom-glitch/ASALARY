@@ -7,6 +7,7 @@ import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/record_draft.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
@@ -28,6 +29,7 @@ import 'package:theo_doi_luong/presentation/screens/home/widgets/profile_header.
 import 'package:theo_doi_luong/presentation/screens/home/widgets/shift_card.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/stat_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/home/widgets/week_overview.dart';
+import 'package:theo_doi_luong/presentation/screens/settings/paid_leave_dialog.dart';
 import 'package:theo_doi_luong/presentation/screens/settings/settings_page.dart';
 import 'package:theo_doi_luong/presentation/screens/stats/period_stats_page.dart';
 import 'package:theo_doi_luong/presentation/screens/shift/record_editor.dart';
@@ -84,6 +86,11 @@ class HomePage extends StatelessWidget {
         final week = summarize(records, monday, DateTime(monday.year, monday.month, monday.day + 7));
         final month = summarize(records, DateTime(now.year, now.month), DateTime(now.year, now.month + 1));
         final year = summarize(records, DateTime(now.year), DateTime(now.year + 1));
+        // Ngày nghỉ có lương được cộng vào thu nhập tuần / tháng / năm.
+        final leave = c.settings.paidLeave;
+        final weekLeavePay = paidLeavePayIn(leave, monday, DateTime(monday.year, monday.month, monday.day + 7));
+        final monthLeavePay = paidLeavePayIn(leave, DateTime(now.year, now.month), DateTime(now.year, now.month + 1));
+        final yearLeavePay = paidLeavePayIn(leave, DateTime(now.year), DateTime(now.year + 1));
 
         return Scaffold(
           floatingActionButton: FloatingActionButton.extended(
@@ -145,7 +152,7 @@ class HomePage extends StatelessWidget {
                           todayType: c.dayTypeFor(now),
                           records: records,
                           holidays: holidays,
-                          weekEarned: week.earned,
+                          weekEarned: week.earned + weekLeavePay,
                           weekHours: week.total,
                           weekShifts: week.shifts,
                           estimate: () => c.active == null
@@ -160,7 +167,9 @@ class HomePage extends StatelessWidget {
                           records: records,
                           holidays: holidays,
                           active: c.active,
+                          paidLeave: leave,
                           onDayTap: (day) => _openDay(context, day),
+                          onLeaveTap: (day) => showPaidLeaveDialog(context, c, day: day),
                           onWeekTap: (monday) => _openStats(context, StatsKind.week, monday),
                         ),
                         Row(
@@ -178,7 +187,7 @@ class HomePage extends StatelessWidget {
                               child: StatTile(
                                 icon: Icons.calendar_month_rounded,
                                 label: 'Tháng này',
-                                value: money(month.earned),
+                                value: money(month.earned + monthLeavePay),
                                 hours: fmtHours(month.total),
                                 color: Colors.indigo,
                                 onTap: () => _openStats(context, StatsKind.month),
@@ -188,7 +197,7 @@ class HomePage extends StatelessWidget {
                               child: StatTile(
                                 icon: Icons.emoji_events_outlined,
                                 label: 'Năm nay',
-                                value: money(year.earned),
+                                value: money(year.earned + yearLeavePay),
                                 hours: fmtHours(year.total),
                                 color: Colors.deepOrange,
                                 onTap: () => _openStats(context, StatsKind.year),
