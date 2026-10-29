@@ -8,6 +8,7 @@ import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/data/preferences/active_shift.dart';
 import 'package:theo_doi_luong/logic/pay_calculator.dart';
@@ -25,6 +26,10 @@ int _flex(double h) => math.max(1, (h * 60).round());
 
 /// Độ đậm của màu cột (nhạt, dễ nhìn).
 const _soft = 0.45;
+
+/// Màu cột ngày nghỉ có lương (Sick leave): xanh nhạt.
+const _leaveBg = Color(0xFFBAE6FD);
+const _leaveFg = Color(0xFF0369A1);
 
 class _Legend extends StatelessWidget {
   const _Legend(this.color, this.text);
@@ -51,12 +56,16 @@ class _DayBar extends StatelessWidget {
     required this.ot,
     required this.dbl,
     required this.maxH,
+    this.leaveHours = 0,
     this.onTap,
     this.todayColor = AppColors.tealMid,
   });
   final String label;
   final bool today, holiday;
   final double reg, ot, dbl, maxH;
+
+  /// Số giờ nghỉ có lương trong ngày (chỉ hiển thị dạng cột Sick leave khi ngày đó không có ca làm).
+  final double leaveHours;
 
   /// Màu vòng tròn của ngày hôm nay: theo loại giờ đang được tính (thường, OT, lễ).
   final Color todayColor;
@@ -66,11 +75,13 @@ class _DayBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = reg + ot + dbl;
+    final worked = reg + ot + dbl;
+    final isLeave = worked <= 0 && leaveHours > 0;
+    final total = isLeave ? leaveHours : worked;
     const barArea = 78.0;
     // Cột tô màu nhạt, chiều cao tỉ lệ với số giờ làm trong ngày (như biểu đồ cột).
     const inner = barArea - 2.4; // trừ viền 1.2 mỗi bên của cột
-    final h = total <= 0 ? 0.0 : math.max(8.0, inner * total / maxH);
+    final h = isLeave ? inner : (total <= 0 ? 0.0 : math.max(8.0, inner * total / maxH));
 
     return Material(
       color: Colors.transparent,
@@ -94,7 +105,7 @@ class _DayBar extends StatelessWidget {
                 height: barArea,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: isLeave ? _leaveBg : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                     // Ngày hôm nay: viền mảnh màu nổi bao quanh cột. Các cột khác có viền trong suốt cùng độ dày
                     // nên kích thước các cột luôn bằng nhau.
@@ -109,7 +120,24 @@ class _DayBar extends StatelessWidget {
                       height: h,
                       clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
-                      child: total <= 0
+                      child: isLeave
+                          ? Center(
+                              child: RotatedBox(
+                                quarterTurns: 3,
+                                child: Text(
+                                  'Sick leave',
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                    color: _leaveFg,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : total <= 0
                           ? null
                           : Column(
                               // stretch: nếu không, ColoredBox không có con sẽ có chiều rộng 0 và cột không hiện.
@@ -166,11 +194,19 @@ class WeekOverview extends StatefulWidget {
     required this.records,
     required this.holidays,
     this.active,
+    this.paidLeave = const {},
     this.onDayTap,
+    this.onLeaveTap,
     this.onWeekTap,
   });
   final List<WorkRecord> records;
   final Set<String> holidays;
+
+  /// Ngày nghỉ có lương: ngày không có ca làm sẽ hiện cột xanh nhạt "Sick leave" kèm số giờ nghỉ.
+  final Map<String, PaidLeave> paidLeave;
+
+  /// Gọi khi bấm vào ngày nghỉ có lương (không có ca) để sửa / xóa.
+  final void Function(DateTime day)? onLeaveTap;
 
   /// Ca đang làm (nếu có): được tính vào giờ của hôm nay để đổi màu vòng tròn ngày hiện tại.
   final ActiveShift? active;
@@ -369,22 +405,26 @@ class _WeekOverviewState extends State<WeekOverview> with SingleTickerProviderSt
                   ot: ot[i],
                   dbl: dbl[i],
                   maxH: maxH,
+                  leaveHours: widget.paidLeave[dateFmt.format(days[i])]?.hours ?? 0,
                   todayColor: offset == 0 ? _todayColor() : AppColors.tealMid,
                   onTap: widget.onDayTap != null && reg[i] + ot[i] + dbl[i] > 0
                       ? () => widget.onDayTap!(days[i])
-                      : null,
+                      : (widget.onLeaveTap != null && widget.paidLeave.containsKey(dateFmt.format(days[i]))
+                          ? () => widget.onLeaveTap!(days[i])
+                          : null),
                 ),
               ),
           ],
         ),
         const SizedBox(height: 12),
-        const Wrap(
+        Wrap(
           spacing: 14,
           runSpacing: 4,
           children: [
-            _Legend(AppColors.tealMid, 'Thường'),
+            const _Legend(AppColors.tealMid, 'Thường'),
             _Legend(Colors.indigo, 'OT x1.5'),
             _Legend(Colors.deepOrange, 'x2'),
+            if (widget.paidLeave.isNotEmpty) const _Legend(_leaveBg, 'Sick leave'),
           ],
         ),
         const SizedBox(height: 16),
