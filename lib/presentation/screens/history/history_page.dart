@@ -93,13 +93,23 @@ class _HistoryPageState extends State<HistoryPage> {
     return out;
   }
 
-  PeriodSummary _sumOf(List<WorkRecord> rs) => summarize(rs, DateTime(1970), DateTime(3000));
+  /// Tổng hợp một nhóm (ngày / tuần / tháng / năm) trong [from, to), đã gồm tiền nghỉ có lương của khoảng đó.
+  /// Khoảng được cắt theo bộ lọc đang chọn để không cộng nghỉ phép nằm ngoài bộ lọc.
+  PeriodSummary _sumOf(List<WorkRecord> rs, DateTime from, DateTime to) {
+    final b = _bounds;
+    var f = from, t = to;
+    if (b != null) {
+      if (b.$1.isAfter(f)) f = b.$1;
+      if (b.$2.isBefore(t)) t = b.$2;
+    }
+    return summarize(rs, f, t, leave: widget.c.settings.paidLeave);
+  }
 
   /// Từng ngày: các ca của ngày đó, rồi đến thống kê ngày.
   void _addDays(List<Object> out, List<WorkRecord> rs) {
     for (final (day, list) in _groupBy(rs, (r) => dateOnly(r.start))) {
       out.addAll(list);
-      final d = _DayItem(day, _sumOf(list), expanded: _open.contains('d${day.toIso8601String()}'));
+      final d = _DayItem(day, _sumOf(list, day, DateTime(day.year, day.month, day.day + 1)), expanded: _open.contains('d${day.toIso8601String()}'));
       out.add(d);
     }
   }
@@ -113,7 +123,7 @@ class _HistoryPageState extends State<HistoryPage> {
       out.add(_GroupHeader(
         key: key,
         title: 'Tuần ${pad2(monday.day)}/${pad2(monday.month)} – ${pad2(sunday.day)}/${pad2(sunday.month)}',
-        summary: _sumOf(list),
+        summary: _sumOf(list, monday, DateTime(monday.year, monday.month, monday.day + 7)),
         expanded: open,
         indent: indent,
       ));
@@ -158,7 +168,7 @@ class _HistoryPageState extends State<HistoryPage> {
       out.add(_GroupHeader(
         key: key,
         title: periodTitle(CompareKind.month, month),
-        summary: _sumOf(list),
+        summary: _sumOf(list, month, DateTime(month.year, month.month + 1)),
         expanded: open,
         isMonth: true,
         indent: indent,
@@ -175,7 +185,7 @@ class _HistoryPageState extends State<HistoryPage> {
       out.add(_GroupHeader(
         key: key,
         title: periodTitle(CompareKind.year, year),
-        summary: _sumOf(list),
+        summary: _sumOf(list, year, DateTime(year.year + 1)),
         expanded: open,
         isMonth: true,
       ));
@@ -252,7 +262,10 @@ class _HistoryPageState extends State<HistoryPage> {
                   for (final r in all)
                     if (!r.start.isBefore(b.$1) && r.start.isBefore(b.$2)) r
                 ];
-          final sum = summarize(rs, DateTime(1970), DateTime(3000));
+          final leave = widget.c.settings.paidLeave;
+          final sum = b == null
+              ? summarize(rs, DateTime(1970), DateTime(3000), leave: leave)
+              : summarize(rs, b.$1, b.$2, leave: leave);
 
           // Danh sách hiển thị (phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn):
           // _GroupHeader = tiêu đề năm / tháng / tuần, WorkRecord = ca làm,
