@@ -1,4 +1,5 @@
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/period_summary.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/logic/day_type.dart';
@@ -48,6 +49,7 @@ PeriodStats computePeriodStats(
   DateTime from,
   DateTime to, {
   required DateTime idleEnd,
+  Map<String, PaidLeave> leave = const {},
 }) {
   final byDay = <DateTime, String>{};
   var holidayHours = 0.0, holidayPay = 0.0, otherHours = 0.0, otherPay = 0.0;
@@ -82,7 +84,7 @@ PeriodStats computePeriodStats(
   }
 
   return PeriodStats(
-    summary: summarize(records, from, to),
+    summary: summarize(records, from, to, leave: leave),
     weekdayDays: weekdayDays,
     otDays: otDays,
     holidayDays: holidayDays,
@@ -106,7 +108,12 @@ class WeekStat {
   final PeriodSummary summary;
 }
 
-List<WeekStat> weeksOfMonth(List<WorkRecord> records, DateTime from, DateTime to) {
+List<WeekStat> weeksOfMonth(
+  List<WorkRecord> records,
+  DateTime from,
+  DateTime to, {
+  Map<String, PaidLeave> leave = const {},
+}) {
   final out = <WeekStat>[];
   var w = startOfWeek(from, DateTime.monday);
   var i = 1;
@@ -118,7 +125,7 @@ List<WeekStat> weeksOfMonth(List<WorkRecord> records, DateTime from, DateTime to
       index: i++,
       start: s,
       end: DateTime(e.year, e.month, e.day - 1),
-      summary: summarize(records, s, e),
+      summary: summarize(records, s, e, leave: leave),
     ));
     w = next;
   }

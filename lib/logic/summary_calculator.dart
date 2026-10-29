@@ -1,8 +1,16 @@
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/period_summary.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 
-PeriodSummary summarize(Iterable<WorkRecord> records, DateTime from, DateTime to) {
+/// Tổng hợp các ca bắt đầu trong [from, to). Nếu truyền [leave], tiền các ngày nghỉ có lương
+/// trong khoảng đó được cộng vào [PeriodSummary.earned] (và ghi riêng ở các trường `leave*`).
+PeriodSummary summarize(
+  Iterable<WorkRecord> records,
+  DateTime from,
+  DateTime to, {
+  Map<String, PaidLeave> leave = const {},
+}) {
   double e = 0, t = 0, r = 0, o = 0, d = 0, rp = 0, op = 0, dp = 0;
   var n = 0;
   for (final x in records) {
@@ -17,8 +25,17 @@ PeriodSummary summarize(Iterable<WorkRecord> records, DateTime from, DateTime to
     dp += x.doublePay;
     n++;
   }
+  var lh = 0.0, lp = 0.0, ld = 0;
+  for (final entry in leave.entries) {
+    final day = DateTime.tryParse(entry.key);
+    if (day == null || day.isBefore(from) || !day.isBefore(to)) continue;
+    lh += entry.value.hours;
+    lp += entry.value.pay;
+    ld++;
+  }
+  lp = (lp * 100).roundToDouble() / 100;
   return PeriodSummary(
-    earned: e,
+    earned: e + lp,
     total: t,
     regular: r,
     ot: o,
@@ -27,6 +44,9 @@ PeriodSummary summarize(Iterable<WorkRecord> records, DateTime from, DateTime to
     otPay: op,
     dblPay: dp,
     shifts: n,
+    leaveHours: lh,
+    leavePay: lp,
+    leaveDays: ld,
   );
 }
 
