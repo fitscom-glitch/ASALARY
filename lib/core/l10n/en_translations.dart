@@ -62,6 +62,19 @@ const enExactTranslations = <String, String>{
   'Chưa đánh dấu ngày lễ nào.': 'No holidays marked.',
   'Thêm ngày lễ': 'Add holiday',
   'Chọn ngày lễ': 'Select a holiday',
+  'Chọn ngày nghỉ có lương': 'Select a paid leave day',
+  'Ngày nghỉ có lương': 'Paid leave',
+  'Ngày nghỉ có lương (Sick leave)': 'Paid leave (Sick leave)',
+  'Chưa có ngày nghỉ có lương nào.': 'No paid leave days yet.',
+  'Thêm ngày nghỉ có lương': 'Add paid leave day',
+  'Số giờ nghỉ': 'Leave hours',
+  'Số giờ phải lớn hơn 0 và tối đa 24.': 'Hours must be greater than 0 and at most 24.',
+  'Đã lưu ngày nghỉ có lương.': 'Paid leave saved.',
+  'Đã xóa ngày nghỉ.': 'Leave day deleted.',
+  'Ngày này đã có ca làm: biểu đồ tuần vẫn hiển thị ca làm.':
+      'This day already has a shift: the weekly chart still shows the shift.',
+  'Ngày nghỉ có lương được tính theo lương giờ hiện tại và cộng vào thu nhập, nhưng không tính vào 40 giờ thường của tuần.':
+      'Paid leave is paid at the current hourly rate and added to income, but does not count toward the 40 regular hours of the week.',
   'Đã đủ 40 giờ thường. Giờ làm thêm tính OT.':
       'Full 40 regular hours reached. Extra hours count as OT.',
   'Giờ thường trong tuần': 'Regular hours this week',
