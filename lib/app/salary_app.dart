@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide Text;
 
 import 'package:theo_doi_luong/core/constants/app_constants.dart';
 import 'package:theo_doi_luong/core/l10n/app_language.dart';
+import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/data/database/app_database.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/logic/controllers/app_lock.dart';
@@ -60,7 +61,9 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
         if (mounted) _rebuildAll();
       });
     }
-    final sig = '${st.reminders.signature}|${st.lang}|${(st.holidays.toList()..sort()).join(',')}';
+    // Lịch nhắc phụ thuộc cả ngày nghỉ có lương và việc vào ca / ra ca / hủy ca (để mở lại nhắc nhở sau khi vào ca).
+    final sig = '${st.reminders.signature}|${st.lang}|${(st.holidays.toList()..sort()).join(',')}'
+        '|${(st.paidLeave.keys.toList()..sort()).join(',')}|${_shiftStamp()}';
     if (sig != _reminderSig) {
       _reminderSig = sig;
       _syncReminders();
@@ -74,10 +77,44 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
     }));
   }
 
+  /// Hôm nay đã có ca làm chưa: đang trong ca, hoặc có ca bắt đầu / kết thúc trong hôm nay.
+  bool _hasShiftToday() {
+    if (_controller.active != null) return true;
+    final today = dateOnly(DateTime.now());
+    return _controller.records.any((r) => dateOnly(r.start) == today || dateOnly(r.end) == today);
+  }
+
+  /// Có ca nào bắt đầu sau thời điểm [t] không (đang trong ca hoặc đã ghi).
+  bool _hasShiftStartedAfter(DateTime t) {
+    final a = _controller.active;
+    if (a != null && a.start.isAfter(t)) return true;
+    return _controller.records.any((r) => r.start.isAfter(t));
+  }
+
+  /// Dấu hiệu thay đổi khi vào ca / ra ca / hủy ca trong hôm nay, để đặt lại lịch nhắc.
+  String _shiftStamp() {
+    final today = dateOnly(DateTime.now());
+    final n = _controller.records.where((r) => dateOnly(r.start) == today || dateOnly(r.end) == today).length;
+    return '${_controller.active?.start.toIso8601String()}#$n';
+  }
+
   Future<void> _syncReminders() async {
     currentLang = _controller.settings.lang;
     try {
-      await _reminders.sync(_controller.settings.reminders, _controller.settings.holidays);
+      // Đã bấm "Tắt nhắc hôm nay" trên thông báo: hôm nay không nhắc nữa, trừ khi sau đó lại vào ca.
+      final skipAt = await _reminders.skippedAt();
+      var skipToday = skipAt != null;
+      if (skipAt != null && _hasShiftStartedAfter(skipAt)) {
+        await _reminders.clearSkip();
+        skipToday = false;
+      }
+      await _reminders.sync(
+        _controller.settings.reminders,
+        _controller.settings.holidays,
+        leaveDays: _controller.settings.paidLeave.keys.toSet(),
+        hasShiftToday: _hasShiftToday(),
+        skipToday: skipToday,
+      );
     } catch (_) {
       // Không cho thông báo lỗi làm hỏng ứng dụng.
     }
