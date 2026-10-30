@@ -3,18 +3,40 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/data/models/period_summary.dart';
 import 'package:theo_doi_luong/logic/controllers/app_controller.dart';
 import 'package:theo_doi_luong/logic/period_utils.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/day_summary_card.dart';
+import 'package:theo_doi_luong/presentation/screens/history/widgets/leave_tile.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/period_header.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/range_summary_card.dart';
 import 'package:theo_doi_luong/presentation/screens/history/widgets/record_tile.dart';
+import 'package:theo_doi_luong/presentation/screens/settings/paid_leave_dialog.dart';
 import 'package:theo_doi_luong/presentation/widgets/app_text.dart';
+import 'package:theo_doi_luong/presentation/widgets/confirm_dialog.dart';
 
 typedef RecordAction = void Function(BuildContext context, WorkRecord record);
+
+/// Một dòng của lịch sử: ca làm hoặc ngày nghỉ có lương (Sick leave).
+class _Entry {
+  _Entry.ofRecord(WorkRecord r)
+      : record = r,
+        leaveKey = null,
+        leave = null,
+        day = dateOnly(r.start);
+  _Entry.ofLeave(String key, PaidLeave l, DateTime d)
+      : record = null,
+        leaveKey = key,
+        leave = l,
+        day = dateOnly(d);
+  final WorkRecord? record;
+  final String? leaveKey;
+  final PaidLeave? leave;
+  final DateTime day;
+}
 
 /// Thống kê của một ngày trong danh sách lịch sử.
 class _DayItem {
@@ -80,8 +102,8 @@ class _HistoryPageState extends State<HistoryPage> {
       });
 
   /// Gom các bản ghi liên tiếp có cùng khóa (danh sách đã sắp xếp theo thời gian).
-  List<(DateTime, List<WorkRecord>)> _groupBy(List<WorkRecord> rs, DateTime Function(WorkRecord) keyOf) {
-    final out = <(DateTime, List<WorkRecord>)>[];
+  List<(DateTime, List<_Entry>)> _groupBy(List<_Entry> rs, DateTime Function(_Entry) keyOf) {
+    final out = <(DateTime, List<_Entry>)>[];
     for (final r in rs) {
       final k = keyOf(r);
       if (out.isNotEmpty && out.last.$1 == k) {
@@ -95,28 +117,30 @@ class _HistoryPageState extends State<HistoryPage> {
 
   /// Tổng hợp một nhóm (ngày / tuần / tháng / năm) trong [from, to), đã gồm tiền nghỉ có lương của khoảng đó.
   /// Khoảng được cắt theo bộ lọc đang chọn để không cộng nghỉ phép nằm ngoài bộ lọc.
-  PeriodSummary _sumOf(List<WorkRecord> rs, DateTime from, DateTime to) {
+  PeriodSummary _sumOf(List<_Entry> es, DateTime from, DateTime to) {
     final b = _bounds;
     var f = from, t = to;
     if (b != null) {
       if (b.$1.isAfter(f)) f = b.$1;
       if (b.$2.isBefore(t)) t = b.$2;
     }
-    return summarize(rs, f, t, leave: widget.c.settings.paidLeave);
+    return summarize([for (final e in es) if (e.record != null) e.record!], f, t, leave: widget.c.settings.paidLeave);
   }
 
-  /// Từng ngày: các ca của ngày đó, rồi đến thống kê ngày.
-  void _addDays(List<Object> out, List<WorkRecord> rs) {
-    for (final (day, list) in _groupBy(rs, (r) => dateOnly(r.start))) {
+  /// Từng ngày: các ca và ngày nghỉ có lương của ngày đó, rồi đến thống kê ngày.
+  void _addDays(List<Object> out, List<_Entry> rs) {
+    for (final (day, list) in _groupBy(rs, (r) => r.day)) {
       out.addAll(list);
+      // Ngày chỉ có nghỉ có lương: dòng nghỉ đã có đủ giờ và tiền, không cần bảng thống kê ngày.
+      if (list.every((e) => e.record == null)) continue;
       final d = _DayItem(day, _sumOf(list, day, DateTime(day.year, day.month, day.day + 1)), expanded: _open.contains('d${day.toIso8601String()}'));
       out.add(d);
     }
   }
 
   /// Các tuần; tuần nào đang mở thì liệt kê tiếp các ngày bên dưới.
-  void _addWeeks(List<Object> out, List<WorkRecord> rs, {String scope = '', double indent = 0}) {
-    for (final (monday, list) in _groupBy(rs, (r) => startOfWeek(r.start, DateTime.monday))) {
+  void _addWeeks(List<Object> out, List<_Entry> rs, {String scope = '', double indent = 0}) {
+    for (final (monday, list) in _groupBy(rs, (r) => startOfWeek(r.day, DateTime.monday))) {
       final sunday = DateTime(monday.year, monday.month, monday.day + 6);
       final key = 'w$scope|${monday.toIso8601String()}';
       final open = _open.contains(key);
@@ -137,7 +161,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   /// Tuần này: liệt kê ngày. Tháng: liệt kê tuần. Năm nay: tháng → tuần → ngày.
   /// Tất cả: năm → tháng → tuần → ngày.
-  List<Object> _buildGrouped(List<WorkRecord> rs) {
+  List<Object> _buildGrouped(List<_Entry> rs) {
     final out = <Object>[];
     switch (_preset) {
       case HistoryPreset.week:
@@ -161,8 +185,8 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   /// Các tháng; tháng nào đang mở thì liệt kê tiếp các tuần bên dưới.
-  void _addMonths(List<Object> out, List<WorkRecord> rs, {String scope = '', double indent = 0}) {
-    for (final (month, list) in _groupBy(rs, (r) => DateTime(r.start.year, r.start.month))) {
+  void _addMonths(List<Object> out, List<_Entry> rs, {String scope = '', double indent = 0}) {
+    for (final (month, list) in _groupBy(rs, (r) => DateTime(r.day.year, r.day.month))) {
       final key = 'm$scope|${month.toIso8601String()}';
       final open = _open.contains(key);
       out.add(_GroupHeader(
@@ -178,8 +202,8 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   /// Các năm; năm nào đang mở thì liệt kê tiếp các tháng bên dưới.
-  void _addYears(List<Object> out, List<WorkRecord> rs) {
-    for (final (year, list) in _groupBy(rs, (r) => DateTime(r.start.year))) {
+  void _addYears(List<Object> out, List<_Entry> rs) {
+    for (final (year, list) in _groupBy(rs, (r) => DateTime(r.day.year))) {
       final key = 'y${year.toIso8601String()}';
       final open = _open.contains(key);
       out.add(_GroupHeader(
@@ -222,6 +246,16 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  Future<void> _deleteLeave(BuildContext context, String key) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Xóa ngày nghỉ có lương?',
+      message: 'Ngày nghỉ có lương này sẽ bị xóa.',
+      action: 'Xóa',
+    );
+    if (ok) await widget.c.removePaidLeave(key);
+  }
+
   Future<void> _pickRange() async {
     final now = DateTime.now();
     final r = await showDateRangePicker(
@@ -241,13 +275,13 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  String _rangeText(List<WorkRecord> rs, (DateTime, DateTime)? b) {
+  String _rangeText(List<_Entry> rs, (DateTime, DateTime)? b) {
     if (b != null) {
       final last = DateTime(b.$2.year, b.$2.month, b.$2.day - 1);
       return '${dmyFmt.format(b.$1)} – ${dmyFmt.format(last)}';
     }
     if (rs.isEmpty) return '';
-    return '${dmyFmt.format(rs.last.start)} – ${dmyFmt.format(rs.first.start)}';
+    return '${dmyFmt.format(rs.last.day)} – ${dmyFmt.format(rs.first.day)}';
   }
 
   @override
@@ -256,16 +290,29 @@ class _HistoryPageState extends State<HistoryPage> {
         builder: (context, _) {
           final all = widget.c.records;
           final b = _bounds;
-          final rs = b == null
-              ? all
-              : [
-                  for (final r in all)
-                    if (!r.start.isBefore(b.$1) && r.start.isBefore(b.$2)) r
-                ];
+          bool inRange(DateTime d) => b == null || (!d.isBefore(b.$1) && d.isBefore(b.$2));
           final leave = widget.c.settings.paidLeave;
+          final recs = [
+            for (final r in all)
+              if (inRange(r.start)) r
+          ];
+          // Ca làm và ngày nghỉ có lương, mới nhất trước. Cùng ngày: các ca (giờ vào muộn trước) rồi đến ngày nghỉ.
+          final rs = <_Entry>[
+            for (final r in recs) _Entry.ofRecord(r),
+            for (final e in leave.entries)
+              if (DateTime.tryParse(e.key) case final d? when inRange(d)) _Entry.ofLeave(e.key, e.value, d),
+          ]..sort((a, z) {
+              final byDay = z.day.compareTo(a.day);
+              if (byDay != 0) return byDay;
+              final ar = a.record, zr = z.record;
+              if (ar != null && zr != null) return zr.start.compareTo(ar.start);
+              if (ar != null) return -1;
+              if (zr != null) return 1;
+              return 0;
+            });
           final sum = b == null
-              ? summarize(rs, DateTime(1970), DateTime(3000), leave: leave)
-              : summarize(rs, b.$1, b.$2, leave: leave);
+              ? summarize(recs, DateTime(1970), DateTime(3000), leave: leave)
+              : summarize(recs, b.$1, b.$2, leave: leave);
 
           // Danh sách hiển thị (phân cấp, bấm tiêu đề để mở rộng hoặc thu gọn):
           // _GroupHeader = tiêu đề năm / tháng / tuần, WorkRecord = ca làm,
@@ -343,7 +390,18 @@ class _HistoryPageState extends State<HistoryPage> {
                             onTap: () => _toggle(it.key),
                           );
                         }
-                        final r = it as WorkRecord;
+                        final e = it as _Entry;
+                        final l = e.leave;
+                        if (l != null) {
+                          return LeaveTile(
+                            key: ValueKey('leave${e.leaveKey}'),
+                            day: e.day,
+                            leave: l,
+                            onTap: () => showPaidLeaveDialog(context, widget.c, day: e.day),
+                            onDelete: () => _deleteLeave(context, e.leaveKey!),
+                          );
+                        }
+                        final r = e.record!;
                         return RecordTile(
                           key: ValueKey(r.id),
                           record: r,
