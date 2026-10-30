@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart' show FilePicker;
 import 'package:flutter/material.dart' hide Text;
 import 'package:intl/intl.dart' show DateFormat;
-import 'package:permission_handler/permission_handler.dart' show Permission;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:theo_doi_luong/core/constants/app_colors.dart';
