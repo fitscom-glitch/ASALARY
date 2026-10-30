@@ -13,7 +13,7 @@ import 'package:theo_doi_luong/services/export/export_service.dart';
 /// (lưu vào vị trí tự chọn trên máy hoặc chia sẻ), rồi tạo và đưa file ra.
 abstract final class ExportFlow {
   static Future<void> run(BuildContext context, AppController c, AppLock lock) async {
-    if (c.records.isEmpty) {
+    if (c.records.isEmpty && c.settings.paidLeave.isEmpty) {
       showToast(context, 'Chưa có dữ liệu để xuất.');
       return;
     }
@@ -26,7 +26,8 @@ abstract final class ExportFlow {
     if (choice == null || !context.mounted) return;
 
     final rs = recordsInRange(c.records, choice.range);
-    if (rs.isEmpty) {
+    final leave = leaveInRange(c.settings.paidLeave, choice.range);
+    if (rs.isEmpty && leave.isEmpty) {
       showToast(context, 'Không có ca làm nào trong khoảng này.');
       return;
     }
@@ -41,7 +42,7 @@ abstract final class ExportFlow {
     ({List<int> bytes, String name, String mime})? file;
     String? error;
     try {
-      file = await buildExport(rs, choice.range, choice.format);
+      file = await buildExport(rs, choice.range, choice.format, leave: leave);
     } catch (e) {
       error = '$e';
     }
