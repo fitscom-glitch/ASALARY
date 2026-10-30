@@ -275,6 +275,12 @@ class _ComparePageState extends State<ComparePage> {
                             _dColor(sa.ot - sb.ot)),
                         _row('x2', fmtHours(sa.dbl), fmtHours(sb.dbl), _dHours(sa.dbl, sb.dbl),
                             _dColor(sa.dbl - sb.dbl)),
+                        if (sa.leaveDays > 0 || sb.leaveDays > 0) ...[
+                          _row('Giờ nghỉ có lương', fmtHours(sa.leaveHours), fmtHours(sb.leaveHours),
+                              _dHours(sa.leaveHours, sb.leaveHours), _dColor(sa.leaveHours - sb.leaveHours)),
+                          _row('Tiền nghỉ có lương', money(sa.leavePay), money(sb.leavePay),
+                              _dMoney(sa.leavePay, sb.leavePay), _dColor(sa.leavePay - sb.leavePay)),
+                        ],
                         _row('Số ca', '${sa.shifts}', '${sb.shifts}',
                             '${sa.shifts - sb.shifts > 0 ? '+' : ''}${sa.shifts - sb.shifts}',
                             _dColor((sa.shifts - sb.shifts).toDouble())),
