@@ -50,16 +50,19 @@ PeriodSummary summarize(
   );
 }
 
-/// Tổng hợp theo tuần; `asc` phải sắp xếp từ cũ đến mới.
-List<(DateTime, PeriodSummary)> weeklySummaries(List<WorkRecord> asc) {
-  final out = <(DateTime, PeriodSummary)>[];
-  DateTime? current;
-  for (final r in asc) {
-    final w = startOfWeek(r.start, DateTime.monday);
-    if (current != w) {
-      current = w;
-      out.add((w, summarize(asc, w, DateTime(w.year, w.month, w.day + 7))));
-    }
-  }
-  return out;
+/// Tổng hợp theo tuần (cũ đến mới); `asc` phải sắp xếp từ cũ đến mới.
+/// Nếu truyền [leave], tuần chỉ có ngày nghỉ có lương cũng được liệt kê và tiền nghỉ được cộng vào [PeriodSummary.earned].
+List<(DateTime, PeriodSummary)> weeklySummaries(
+  List<WorkRecord> asc, {
+  Map<String, PaidLeave> leave = const {},
+}) {
+  final mondays = <DateTime>{
+    for (final r in asc) startOfWeek(r.start, DateTime.monday),
+    for (final k in leave.keys)
+      if (DateTime.tryParse(k) case final d?) startOfWeek(d, DateTime.monday),
+  }.toList()
+    ..sort();
+  return [
+    for (final w in mondays) (w, summarize(asc, w, DateTime(w.year, w.month, w.day + 7), leave: leave)),
+  ];
 }

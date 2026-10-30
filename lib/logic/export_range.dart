@@ -1,5 +1,6 @@
 import 'package:theo_doi_luong/core/utils/date_utils.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 
 enum ExportRange { week, month, lastMonth, year, all }
@@ -43,13 +44,28 @@ List<WorkRecord> recordsInRange(List<WorkRecord> all, ExportRange r) {
   ];
 }
 
-/// `newestFirst` là danh sách đã lọc, mới nhất trước.
-String rangeSubtitle(ExportRange r, List<WorkRecord> newestFirst) {
+/// Các ngày nghỉ có lương nằm trong khoảng xuất.
+Map<String, PaidLeave> leaveInRange(Map<String, PaidLeave> all, ExportRange r) {
+  final b = exportBounds(r, DateTime.now());
+  if (b == null) return all;
+  return {
+    for (final e in all.entries)
+      if (DateTime.tryParse(e.key) case final d? when !d.isBefore(b.$1) && d.isBefore(b.$2)) e.key: e.value,
+  };
+}
+
+/// `newestFirst` là danh sách đã lọc, mới nhất trước. [leave] là các ngày nghỉ có lương đã lọc.
+String rangeSubtitle(ExportRange r, List<WorkRecord> newestFirst, {Map<String, PaidLeave> leave = const {}}) {
   final b = exportBounds(r, DateTime.now());
   if (b != null) {
     final last = DateTime(b.$2.year, b.$2.month, b.$2.day - 1);
     return '${dmyFmt.format(b.$1)} – ${dmyFmt.format(last)}';
   }
-  if (newestFirst.isEmpty) return '';
-  return '${dmyFmt.format(newestFirst.last.start)} – ${dmyFmt.format(newestFirst.first.start)}';
+  final days = <DateTime>[
+    for (final x in newestFirst) dateOnly(x.start),
+    for (final k in leave.keys)
+      if (DateTime.tryParse(k) case final d?) dateOnly(d),
+  ]..sort();
+  if (days.isEmpty) return '';
+  return '${dmyFmt.format(days.first)} – ${dmyFmt.format(days.last)}';
 }
