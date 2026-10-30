@@ -44,6 +44,17 @@ missing = [p for p in permissions if p.split('"')[1] not in text]
 if missing:
     text = text.replace("<application", "".join(p + "\n    " for p in missing) + "<application", 1)
 
+if "ActionBroadcastReceiver" not in text:
+    # Nút bấm trên thông báo (\"Tắt nhắc hôm nay\") chạy qua receiver này, kể cả khi ứng dụng đang đóng.
+    if "</application>" not in text:
+        fail("manifest khong co </application>")
+    text = text.replace(
+        "</application>",
+        '<receiver android:exported="false" '
+        'android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />\n    </application>',
+        1,
+    )
+
 if "ScheduledNotificationReceiver" not in text:
     receivers = (
         '<receiver android:exported="false" '
