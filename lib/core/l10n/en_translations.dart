@@ -71,6 +71,9 @@ const enExactTranslations = <String, String>{
   'Số giờ phải lớn hơn 0 và tối đa 24.': 'Hours must be greater than 0 and at most 24.',
   'Đã lưu ngày nghỉ có lương.': 'Paid leave saved.',
   'Đã xóa ngày nghỉ.': 'Leave day deleted.',
+  'Xóa ngày nghỉ có lương?': 'Delete paid leave day?',
+  'Ngày nghỉ có lương này sẽ bị xóa.': 'This paid leave day will be deleted.',
+  'Nghỉ': 'Leave',
   'Ngày này đã có ca làm: biểu đồ tuần vẫn hiển thị ca làm.':
       'This day already has a shift: the weekly chart still shows the shift.',
   'Ngày nghỉ có lương được tính theo lương giờ hiện tại và cộng vào thu nhập, nhưng không tính vào 40 giờ thường của tuần.':
@@ -327,7 +330,8 @@ final enPatternTranslations = <(RegExp, String Function(RegExpMatch))>[
   (RegExp(r'^(.+) · (\d+) ca$'), (RegExpMatch m) => '${m[1]} · ${m[2]} ${m[2] == '1' ? 'shift' : 'shifts'}'),
   (RegExp(r'^Vào lúc (.+) · (.+)/giờ$'), (RegExpMatch m) => 'Started ${m[1]} · ${m[2]}/hr'),
   (RegExp(r'^(.+)/giờ$'), (RegExpMatch m) => '${m[1]}/hr'),
-  (RegExp(r'^Thường (\S+) · OT (\S+) · x2 (\S+)$'), (RegExpMatch m) => 'Regular ${m[1]} · OT ${m[2]} · x2 ${m[3]}'),
+  (RegExp(r'^Thường (\S+) · OT (\S+) · x2 (\S+)(?: · Nghỉ (\S+))?$'),
+      (RegExpMatch m) => 'Regular ${m[1]} · OT ${m[2]} · x2 ${m[3]}${m[4] == null ? '' : ' · Leave ${m[4]}'}'),
   (RegExp(r'^Thường (\d+h\d\d)$'), (RegExpMatch m) => 'Regular ${m[1]}'),
   (RegExp(r'^Tuần này (.+)$'), (RegExpMatch m) => 'This week ${m[1]}'),
   (RegExp(r'^Tuần (.+)$'), (RegExpMatch m) => 'Week ${m[1]}'),
