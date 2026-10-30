@@ -74,6 +74,7 @@ const enExactTranslations = <String, String>{
   'Xóa ngày nghỉ có lương?': 'Delete paid leave day?',
   'Ngày nghỉ có lương này sẽ bị xóa.': 'This paid leave day will be deleted.',
   'Nghỉ': 'Leave',
+  'Tắt nhắc hôm nay': 'Mute today',
   'Tiền nghỉ có lương': 'Paid leave pay',
   'Sao lưu tự động': 'Automatic backup',
   'Tự động sao lưu khi mở ứng dụng': 'Back up automatically when the app opens',
