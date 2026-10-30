@@ -50,7 +50,8 @@ class PeriodHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Thường ${fmtHours(summary.regular)} · OT ${fmtHours(summary.ot)} · x2 ${fmtHours(summary.dbl)}',
+                      'Thường ${fmtHours(summary.regular)} · OT ${fmtHours(summary.ot)} · x2 ${fmtHours(summary.dbl)}'
+                      '${summary.leaveDays > 0 ? ' · Nghỉ ${fmtHours(summary.leaveHours)}' : ''}',
                       style: const TextStyle(fontSize: 12, color: AppColors.muted),
                     ),
                   ],
