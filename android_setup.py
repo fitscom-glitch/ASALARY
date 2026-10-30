@@ -36,6 +36,8 @@ permissions = [
     '<uses-permission android:name="android.permission.VIBRATE"/>',
     '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
     '<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>',
+    # Tự động sao lưu vào thư mục người dùng chọn (Android 11+ cần quyền truy cập mọi tệp)
+    '<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>',
     '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>',
 ]
 missing = [p for p in permissions if p.split('"')[1] not in text]

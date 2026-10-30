@@ -19,7 +19,7 @@ lib/
 ├─ services/
 │  ├─ export/                     # csv / xlsx / pdf, lưu vào máy (file_picker) và chia sẻ
 │  ├─ security/                   # lock_store, biometrics, password_hasher
-│  └─ reminder_service, avatar_store
+│  └─ reminder_service, avatar_store, auto_backup_service (tự động sao lưu định kỳ)
 └─ presentation/
    ├─ theme/                      # app_theme (có vuốt cạnh để quay lại), day_type_style
    ├─ widgets/                    # Text (có dịch), Pill, settings_widgets, profile_texts, toast...
