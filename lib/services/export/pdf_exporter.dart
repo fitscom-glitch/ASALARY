@@ -5,11 +5,18 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:theo_doi_luong/core/l10n/app_language.dart';
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
+import 'package:theo_doi_luong/logic/export_rows.dart';
 import 'package:theo_doi_luong/logic/summary_calculator.dart';
 
 /// Chạy hoàn toàn offline: dùng font Liberation Sans đóng gói sẵn trong assets (có tiếng Việt).
-Future<List<int>> buildPdf(List<WorkRecord> newestFirst, String title, String subtitle) async {
+Future<List<int>> buildPdf(
+  List<WorkRecord> newestFirst,
+  String title,
+  String subtitle, {
+  Map<String, PaidLeave> leave = const {},
+}) async {
   final asc = newestFirst.reversed.toList();
   final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/LiberationSans-Regular.ttf'));
   final boldFont = pw.Font.ttf(await rootBundle.load('assets/fonts/LiberationSans-Bold.ttf'));
@@ -18,7 +25,7 @@ Future<List<int>> buildPdf(List<WorkRecord> newestFirst, String title, String su
   final teal = pdf.PdfColor.fromHex('#0F766E');
   final grey = pdf.PdfColor.fromHex('#64748B');
   final light = pdf.PdfColor.fromHex('#F1F5F9');
-  final sum = summarize(asc, DateTime(1970), DateTime(3000));
+  final sum = summarize(asc, DateTime(1970), DateTime(3000), leave: leave);
 
   pw.Widget stat(String label, String value) => pw.Expanded(
         child: pw.Container(
@@ -75,15 +82,19 @@ Future<List<int>> buildPdf(List<WorkRecord> newestFirst, String title, String su
             stat('OT x1.5', fmtHours(sum.ot)),
             pw.SizedBox(width: 8),
             stat('x2', fmtHours(sum.dbl)),
+            if (sum.leaveDays > 0) ...[
+              pw.SizedBox(width: 8),
+              stat(tr('Nghỉ có lương'), fmtHours(sum.leaveHours)),
+            ],
           ],
         ),
         pw.SizedBox(height: 18),
         pw.Text(tr('Theo tuần'), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 6),
         table(
-          [tr('Tuần'), tr('Số ca'), tr('Tổng giờ'), tr('Thường'), 'OT x1.5', 'x2', tr('Tiền')],
+          [tr('Tuần'), tr('Số ca'), tr('Tổng giờ'), tr('Thường'), 'OT x1.5', 'x2', tr('Nghỉ'), tr('Tiền')],
           [
-            for (final (monday, w) in weeklySummaries(asc))
+            for (final (monday, w) in weeklySummaries(asc, leave: leave))
               [
                 weekLabel(monday),
                 '${w.shifts}',
@@ -91,6 +102,7 @@ Future<List<int>> buildPdf(List<WorkRecord> newestFirst, String title, String su
                 fmtHours(w.regular),
                 fmtHours(w.ot),
                 fmtHours(w.dbl),
+                fmtHours(w.leaveHours),
                 money(w.earned),
               ],
           ],
@@ -99,20 +111,35 @@ Future<List<int>> buildPdf(List<WorkRecord> newestFirst, String title, String su
         pw.Text(tr('Chi tiết ca làm'), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 6),
         table(
-          [tr('Ngày'), tr('Vào'), tr('Ra'), tr('Loại'), tr('Thường'), 'OT x1.5', 'x2', tr('Lương/giờ'), tr('Tiền')],
+          [tr('Ngày'), tr('Vào'), tr('Ra'), tr('Loại'), tr('Thường'), 'OT x1.5', 'x2', tr('Nghỉ'), tr('Lương/giờ'), tr('Tiền')],
           [
-            for (final r in asc)
-              [
-                '${weekdayShort[r.start.weekday - 1]} ${dmyFmt.format(r.start)}',
-                timeFmt.format(r.start),
-                '${timeFmt.format(r.end)}${r.overnight ? ' (+1)' : ''}',
-                dayLabel(r.dayType),
-                fmtHours(r.regularHours),
-                fmtHours(r.otHours),
-                fmtHours(r.doubleHours),
-                money(r.hourlyRate),
-                money(r.earned),
-              ],
+            for (final x in exportRowsAsc(newestFirst, leave))
+              if (x.record case final r?)
+                [
+                  '${weekdayShort[r.start.weekday - 1]} ${dmyFmt.format(r.start)}',
+                  timeFmt.format(r.start),
+                  '${timeFmt.format(r.end)}${r.overnight ? ' (+1)' : ''}',
+                  dayLabel(r.dayType),
+                  fmtHours(r.regularHours),
+                  fmtHours(r.otHours),
+                  fmtHours(r.doubleHours),
+                  '',
+                  money(r.hourlyRate),
+                  money(r.earned),
+                ]
+              else if (x.leave case final l?)
+                [
+                  '${weekdayShort[x.date.weekday - 1]} ${dmyFmt.format(x.date)}',
+                  '',
+                  '',
+                  tr('Nghỉ có lương'),
+                  '',
+                  '',
+                  '',
+                  fmtHours(l.hours),
+                  money(l.rate),
+                  money(l.pay),
+                ],
           ],
         ),
       ],

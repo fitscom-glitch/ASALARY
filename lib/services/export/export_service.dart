@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart' show Share, XFile;
 
 import 'package:theo_doi_luong/core/l10n/translator.dart';
 import 'package:theo_doi_luong/core/utils/formatters.dart';
+import 'package:theo_doi_luong/data/models/paid_leave.dart';
 import 'package:theo_doi_luong/data/models/work_record.dart';
 import 'package:theo_doi_luong/logic/export_range.dart';
 import 'package:theo_doi_luong/services/export/csv_exporter.dart';
@@ -18,13 +19,14 @@ import 'package:theo_doi_luong/services/export/xlsx_exporter.dart';
 Future<({List<int> bytes, String name, String mime})> buildExport(
   List<WorkRecord> newestFirst,
   ExportRange range,
-  ExportFormat format,
-) async {
+  ExportFormat format, {
+  Map<String, PaidLeave> leave = const {},
+}) async {
   final stamp = dateFmt.format(DateTime.now());
   switch (format) {
     case ExportFormat.xlsx:
       return (
-        bytes: buildXlsx(newestFirst),
+        bytes: buildXlsx(newestFirst, leave: leave),
         name: 'bang_luong_$stamp.xlsx',
         mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
@@ -33,14 +35,15 @@ Future<({List<int> bytes, String name, String mime})> buildExport(
         bytes: await buildPdf(
           newestFirst,
           tr('Bảng lương – ${tr(exportRangeLabels[range]!)}'),
-          rangeSubtitle(range, newestFirst),
+          rangeSubtitle(range, newestFirst, leave: leave),
+          leave: leave,
         ),
         name: 'bang_luong_$stamp.pdf',
         mime: 'application/pdf',
       );
     case ExportFormat.csv:
       return (
-        bytes: utf8.encode(buildCsv(newestFirst)),
+        bytes: utf8.encode(buildCsv(newestFirst, leave: leave)),
         name: 'bang_luong_$stamp.csv',
         mime: 'text/csv',
       );
