@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Text;
 
 import 'package:theo_doi_luong/core/constants/app_constants.dart';
@@ -9,6 +11,7 @@ import 'package:theo_doi_luong/logic/controllers/avatar_controller.dart';
 import 'package:theo_doi_luong/presentation/screens/home/home_page.dart';
 import 'package:theo_doi_luong/presentation/screens/lock/lock_gate.dart';
 import 'package:theo_doi_luong/presentation/theme/app_theme.dart';
+import 'package:theo_doi_luong/services/auto_backup_service.dart';
 import 'package:theo_doi_luong/services/avatar_store.dart';
 import 'package:theo_doi_luong/services/reminder_service.dart';
 import 'package:theo_doi_luong/services/security/biometrics_service.dart';
@@ -27,6 +30,7 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
   final _avatar = AvatarController(AvatarStore());
   String _reminderSig = '';
   String _lang = currentLang;
+  bool _autoBackupChecked = false;
 
   @override
   void initState() {
@@ -36,6 +40,7 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
     _controller.load();
     _lock.load();
     _avatar.load();
+    AutoBackupService.instance.load();
   }
 
   /// Đặt lại lịch nhắc khi đổi giờ, thứ lặp lại hoặc ngôn ngữ (nội dung thông báo).
@@ -43,6 +48,11 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
     if (_controller.loading) return;
     final st = _controller.settings;
     currentLang = st.lang;
+    // Lần đầu dữ liệu tải xong khi mở ứng dụng: kiểm tra và tự sao lưu nếu đến hạn.
+    if (!_autoBackupChecked) {
+      _autoBackupChecked = true;
+      _scheduleAutoBackup();
+    }
     if (st.lang != _lang) {
       _lang = st.lang;
       // Buộc mọi widget (kể cả const) dựng lại để áp dụng ngôn ngữ mới mà không đóng các trang đang mở.
@@ -55,6 +65,13 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
       _reminderSig = sig;
       _syncReminders();
     }
+  }
+
+  /// Sao lưu tự động chạy nền, trễ vài giây để không tranh tài nguyên với lúc mở ứng dụng; không hiện gì lên màn hình.
+  void _scheduleAutoBackup() {
+    unawaited(Future<void>.delayed(const Duration(seconds: 3), () {
+      if (mounted) return AutoBackupService.instance.runIfDue(_controller);
+    }));
   }
 
   Future<void> _syncReminders() async {
@@ -81,7 +98,10 @@ class _SalaryAppState extends State<SalaryApp> with WidgetsBindingObserver {
       _lock.onPaused();
     } else if (state == AppLifecycleState.resumed) {
       _lock.onResumed();
-      if (!_controller.loading) _syncReminders(); // làm mới lịch cho 30 ngày tới
+      if (!_controller.loading) {
+        _syncReminders(); // làm mới lịch cho 30 ngày tới
+        _scheduleAutoBackup(); // quay lại ứng dụng sau nhiều ngày: sao lưu nếu đến hạn
+      }
     }
   }
 
